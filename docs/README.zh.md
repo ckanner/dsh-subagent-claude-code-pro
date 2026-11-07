@@ -182,6 +182,17 @@ Claude Code 钥匙串项是否真的有 token（只打印长度与过期时间�
 model/effort/session/permission/timeout、`system/init` 报告的 CLI 版本与模型、
 完成/失败分类、清理确认、cache read tokens。委派"看起来没动静"时先看这里。
 
+## 验证情况
+
+- `npm test`：51 项确定性测试（fake `claude` CLI），覆盖 session 生命周期、续接
+  修复、多模态编码、图片投递与 route 门控、结构化输出、后台任务、超时、取消、
+  失败分类。
+- `node scripts/probe-live.mjs`：真实 CLI 冒烟——新建 session、最终文本、跨进程
+  续接并回忆上一轮内容（cache_read 命中）。
+- 安装后的真实 DSH 会话 E2E：文本、session 复用、图片输入、`output_schema`、
+  后台任务均通过。证据与尚未 live 验证的项见
+  [docs/live-verification.md](docs/live-verification.md)。
+
 ## 开发
 
 ```sh

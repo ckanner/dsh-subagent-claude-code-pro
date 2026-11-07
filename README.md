@@ -222,6 +222,18 @@ CLI version and model reported on `system/init`, completion or failure category,
 cleanup confirmation, and cache-read tokens. Read it first when a delegation
 appears to do nothing.
 
+## Verification
+
+- `npm test` — 51 deterministic tests against a fake `claude` CLI covering
+  session lifetime, resume repair, multimodal encoding, image delivery and route
+  gating, structured output, background jobs, timeout, cancellation, and
+  failure classification.
+- `node scripts/probe-live.mjs` — real-CLI smoke: new session, final text, and a
+  resumed turn that recalls the prior message with prompt-cache reuse.
+- Real DSH-session E2E through the installed tool: text, session reuse, image
+  input, `output_schema`, and a background job all passed. Evidence, commands,
+  and the not-yet-verified-live list: [docs/live-verification.md](docs/live-verification.md).
+
 ## Development
 
 ```sh

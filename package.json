@@ -11,10 +11,10 @@
   "files": [
     "lib",
     "scripts",
+    "docs",
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "docs/README.zh.md",
     "LICENSE"
   ],
   "dsh": {
