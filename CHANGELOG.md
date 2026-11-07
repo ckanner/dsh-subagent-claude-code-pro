@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+First fully live-verified release.
+
+- Live DSH-session verification completed: text, session reuse, `fork_session`
+  (new id, history inherited), image input, image output (real attachment block
+  delivered to the caller), PDF document input, `output_schema`, and background
+  job — all passed against the local `claude` CLI 2.1.319.
+- `docs/live-verification.md` records commands, evidence, and the CLI credential
+  caveat.
+- GitHub repository + CI added; release tarball attached to the GitHub release.
+
 ## 0.2.2
 
 - Doctor: read the macOS keychain password entry correctly (never printed) and

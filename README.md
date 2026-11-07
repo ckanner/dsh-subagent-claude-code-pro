@@ -13,9 +13,10 @@ provider cannot express:
 - diagnostics in `~/.dsh/claude-code-pro.log`, because a plugin has no log
   surface a session can read.
 
-> **Status:** `0.2.0` implements text, model-native image and PDF input, image
-> output, `output_schema`, background jobs, and the session core. See
-> `CHANGELOG.md`.
+> **Status:** `0.3.0` is the first fully live-verified release: text, model-native
+> image and PDF input, image output, `output_schema`, background jobs, and the
+> session core (including fork) were exercised against a real local `claude` CLI
+> and a real DSH session. See `docs/live-verification.md` and `CHANGELOG.md`.
 
 ## Why this exists
 
@@ -230,9 +231,10 @@ appears to do nothing.
   failure classification.
 - `node scripts/probe-live.mjs` — real-CLI smoke: new session, final text, and a
   resumed turn that recalls the prior message with prompt-cache reuse.
-- Real DSH-session E2E through the installed tool: text, session reuse, image
-  input, `output_schema`, and a background job all passed. Evidence, commands,
-  and the not-yet-verified-live list: [docs/live-verification.md](docs/live-verification.md).
+- Real DSH-session E2E through the installed tool: text, session reuse,
+  `fork_session`, image input, image output (a real attachment block reached the
+  caller), PDF input, `output_schema`, and a background job all passed. Evidence
+  and commands: [docs/live-verification.md](docs/live-verification.md).
 
 ## Development
 

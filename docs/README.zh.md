@@ -11,8 +11,9 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 - 单次委派的 deadline、调用方取消、进程组清理；
 - 诊断日志 `~/.dsh/claude-code-pro.log`（插件没有会话可读的日志面）。
 
-> **状态**：`0.2.0` 完成文本 + Session 核心、图片/PDF 输入、图片输出、
-> `output_schema`、后台任务。见 `CHANGELOG.md`。
+> **状态**：`0.3.0` 是首个完成真实环境全量验证的版本：文本、图片/PDF 输入、
+> 图片输出、`output_schema`、后台任务、Session（含 fork）均已用本地 `claude`
+> CLI 与真实 DSH 会话跑通。见 `docs/live-verification.md` 与 `CHANGELOG.md`。
 
 ## 为什么要这个插件
 
@@ -189,9 +190,9 @@ model/effort/session/permission/timeout、`system/init` 报告的 CLI 版本与�
   失败分类。
 - `node scripts/probe-live.mjs`：真实 CLI 冒烟——新建 session、最终文本、跨进程
   续接并回忆上一轮内容（cache_read 命中）。
-- 安装后的真实 DSH 会话 E2E：文本、session 复用、图片输入、`output_schema`、
-  后台任务均通过。证据与尚未 live 验证的项见
-  [docs/live-verification.md](docs/live-verification.md)。
+- 安装后的真实 DSH 会话 E2E：文本、session 复用、`fork_session`、图片输入、
+  图片输出（真实 attachment block 回到调用方）、PDF 输入、`output_schema`、
+  后台任务均通过。证据见 [docs/live-verification.md](docs/live-verification.md)。
 
 ## 开发
 
