@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.2 (source candidate, unreleased)
+
+- Add public `dsh-subagent-claude-code-pro/machine` protocol v1 with TypeScript
+  declarations, strict request admission, explicit ephemeral/persistent/resumed
+  invocation identity, real CLI init observations, per-run usage completeness,
+  and separately reported API-equivalent cost. No runtime dependencies.
+- Settle the entire owned POSIX process group on every exit path, including
+  failed results, aborts, output errors, and a leader that exits first. Only
+  ESRCH proves absence; unconfirmed cleanup blocks success and session reuse.
+- Establish an independent guardian and IPC lifeline before starting the CLI.
+  Caller death, including process-group SIGKILL, disconnects that lifeline and
+  makes the guardian clean up the native group. The caller waits for the
+  guardian's terminal response and exit before returning a receipt.
+- Reject malformed/truncated/duplicate terminal frames, conflicting session
+  identities, missing explicit status, abnormal success exits, and mismatched
+  cwd/model/native permissions. Progress never proves completion.
+- Preserve the desktop tool's text, image/PDF, structured-output, and background
+  interfaces. Limit remembered-session repair to confirmed terminal/cleanup
+  evidence, and honor independent `persistent` calls instead of implicitly
+  reusing an Agent session. Explicit empty setting sources remain empty.
+- Add bilingual machine-contract documentation and offline fault/process tests.
+  No new real-account or macOS acceptance is claimed for the machine API, and
+  no npm release or existing installation update is performed by this change.
+
 ## 0.3.1
 
 DSH plugin metadata and bilingual documentation.

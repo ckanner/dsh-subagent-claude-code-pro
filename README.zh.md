@@ -1,5 +1,10 @@
 # dsh-subagent-claude-code-pro
 
+**0.3.2 源码候选：**新增公开、带类型的
+[`/machine` API](docs/machine-api.zh.md)，供调度器使用显式会话身份、实际配置
+证据、逐次用量与进程组清理回执。该候选尚未发布 npm；下文已发布桌面版本及
+真实账号验收记录对应 0.3.1。
+
 [English](README.md) | 中文
 
 DeepSeek Harness 的 Claude Code 委派插件：**直接驱动你本机已登录的 `claude`
@@ -60,7 +65,7 @@ subagent_claude_code({
   model: "sonnet",              // 别名或完整 id；省略用配置/原生默认
   reasoning_effort: "high",     // low | medium | high | xhigh | max
   permission_mode: "acceptEdits",
-  session_mode: "session",
+  session_mode: "persistent",
   session_id: "…uuid…",         // 续接上一次结果里报告的 session
   fork_session: false,
   images: ["/abs/shot.png"],    // 作为图片交给 Claude，而不是让它自己打开
@@ -175,7 +180,7 @@ doctor 只打印 token 长度，不打印值。
   不支持的 flag 会让这次运行失败并带上 CLI 的消息。
 - 并发委派会并发启动 CLI 进程。这通常是可行的，但 CLI 自己的凭据刷新是共享状态，
   重度并发是 CLI 的限制，本插件不接管。
-- Windows 进程树清理尚未实现；POSIX 下按进程组清理。
+- Windows 缺少进程树清理支持，因此在派发前拒绝调用；支持的 POSIX 平台按进程组清理。
 
 ## 排障 / doctor
 
@@ -197,7 +202,7 @@ model/effort/session/permission/timeout、`system/init` 报告的 CLI 版本与�
 
 ## 验证情况
 
-- `npm test`：51 项确定性测试（fake `claude` CLI），覆盖 session 生命周期、续接
+- `npm test`：确定性测试（fake `claude` CLI），覆盖 session 生命周期、续接
   修复、多模态编码、图片投递与 route 门控、结构化输出、后台任务、超时、取消、
   失败分类。
 - `node scripts/probe-live.mjs`：真实 CLI 冒烟——新建 session、最终文本、跨进程

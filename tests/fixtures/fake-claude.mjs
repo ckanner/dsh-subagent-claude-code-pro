@@ -10,6 +10,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 
 const args = process.argv.slice(2)
@@ -35,9 +36,15 @@ try {
 }
 
 const mode = process.env.FAKE_CLAUDE_MODE ?? 'normal'
+if (mode === 'ignore-term') process.on('SIGTERM', () => {})
 const logPath = process.env.FAKE_CLAUDE_LOG
 if (logPath !== undefined) {
-  appendFileSync(logPath, `${JSON.stringify({ args, prompt, userContent, mode })}\n`)
+  appendFileSync(logPath, `${JSON.stringify({ args, prompt, userContent, mode, pid: process.pid, parentPid: process.ppid, env: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN,
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+    DSH_PRIVATE: process.env.DSH_PRIVATE,
+  } })}\n`)
 }
 
 const resumedId = flag('--resume')
@@ -49,31 +56,50 @@ const stateDir = process.env.FAKE_CLAUDE_STATE
 const init = () => emit({
   type: 'system',
   subtype: 'init',
-  session_id: sessionId,
-  model,
+  session_id: mode === 'wrong-session' ? '33333333-3333-4333-8333-333333333333' : sessionId,
+  model: process.env.FAKE_CLAUDE_OBSERVED_MODEL ?? (mode === 'wrong-model' ? 'different-model' : model),
   claude_code_version: '9.9.9-fake',
-  cwd: process.cwd(),
-  permissionMode: flag('--permission-mode'),
+  cwd: mode === 'wrong-cwd' ? '/wrong-cwd' : process.cwd(),
+  permissionMode: mode === 'wrong-permission' ? 'dontAsk' : flag('--permission-mode'),
   apiKeySource: 'ANTHROPIC_API_KEY',
   capabilities: ['fake'],
 })
 
-const result = (fields) => emit({
+const result = (fields) => {
+  const value = {
   type: 'result',
   session_id: sessionId,
   uuid: randomUUID(),
-  usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: resumedId === undefined ? 0 : 7 },
+  usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: resumedId === undefined ? 0 : 7, cache_creation_input_tokens: 0 },
   total_cost_usd: 0.001,
   ...fields,
-})
+  }
+  if (mode === 'partial-usage') delete value.usage.cache_creation_input_tokens
+  if (mode === 'invalid-usage') { value.usage.input_tokens = -5; value.usage.output_tokens = '5' }
+  if (mode === 'missing-usage') delete value.usage
+  if (mode === 'invalid-cost') value.total_cost_usd = -1
+  if (mode === 'missing-status') delete value.is_error
+  if (mode === 'result-session-mismatch') value.session_id = randomUUID()
+  if (mode === 'partial-line') { process.stdout.write(JSON.stringify(value)); return }
+  emit(value)
+  if (mode === 'duplicate-result') emit(value)
+  if (mode === 'corrupt-tail') process.stdout.write('not-json\n')
+  if (mode === 'trailing-assistant') emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: 'too late' }] } })
+}
 
-if (mode === 'hang') {
+if (mode.startsWith('descendant-')) {
+  const descendant = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], { stdio: 'inherit' })
+  if (process.env.FAKE_CLAUDE_DESCENDANT_PID) writeFileSync(process.env.FAKE_CLAUDE_DESCENDANT_PID, String(descendant.pid))
+  await sleep(50)
+}
+
+if (mode === 'hang' || mode === 'ignore-term' || mode === 'descendant-timeout') {
   init()
   await sleep(60_000)
   process.exit(0)
 }
 
-if (mode === 'auth-fail') {
+if (mode === 'auth-fail' || mode === 'descendant-failure') {
   init()
   result({ subtype: 'success', is_error: true, result: 'Failed to authenticate: OAuth session expired and could not be refreshed' })
   process.exit(1)
@@ -134,6 +160,7 @@ if (stateDir !== undefined) {
 }
 
 let answer = prior === '' ? `echo:${prompt}` : `prior:${prior}|echo:${prompt}`
+if (mode === 'large-answer') answer = 'x'.repeat(2048)
 /** When a schema is supplied the fake answers machine-readable JSON, as the CLI would. */
 let structured
 if (has('--json-schema')) {
@@ -144,12 +171,14 @@ if (has('--json-schema')) {
     answer = JSON.stringify(structured)
   }
 }
-init()
+if (mode !== 'no-init') init()
+if (mode === 'duplicate-init') init()
 emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: answer }] } })
+if (mode === 'progress-hang') await sleep(60_000)
 result({
-  subtype: 'success',
-  is_error: false,
+  subtype: mode === 'limit' ? 'error_max_turns' : 'success',
+  is_error: mode === 'limit',
   result: answer,
   ...(structured === undefined ? {} : { structured_output: structured }),
 })
-process.exit(0)
+process.exit(mode === 'nonzero-success' ? 2 : mode === 'limit' ? 1 : 0)

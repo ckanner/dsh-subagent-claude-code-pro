@@ -95,6 +95,23 @@ test('ephemeral runs write nothing resumable', async () => {
   assert.ok(!runs.at(-1).args.includes('--session-id'))
 })
 
+test('persistent configured calls create independent sessions unless a resume id is explicit', async () => {
+  const { tools, log } = setup({ sessionMode: 'persistent' })
+  const first = textOf(await execute(tools[0], { prompt: 'first task' }))
+  const second = textOf(await execute(tools[0], { prompt: 'second task' }))
+  assert.notEqual(sessionIdOf(first), sessionIdOf(second))
+  assert.doesNotMatch(second, /prior:first task/)
+  assert.equal(spawnLog(log).filter(run => run.args.includes('--resume')).length, 0)
+})
+
+test('an explicit per-call persistent mode overrides implicit conversation reuse', async () => {
+  const { tools } = setup({ sessionMode: 'session' })
+  const first = textOf(await execute(tools[0], { prompt: 'conversation task' }))
+  const second = textOf(await execute(tools[0], { prompt: 'independent task', session_mode: 'persistent' }))
+  assert.notEqual(sessionIdOf(first), sessionIdOf(second))
+  assert.doesNotMatch(second, /prior:conversation task/)
+})
+
 test('an explicit session id continues that session and is forwarded as --resume', async () => {
   const { tools, log } = setup({ sessionMode: 'persistent' })
   const first = textOf(await execute(tools[0], { prompt: 'remember alpha' }))

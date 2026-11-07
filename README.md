@@ -2,6 +2,12 @@
 
 English | [中文](README.zh.md)
 
+**0.3.2 source candidate:** a public, typed
+[`/machine` API](docs/machine-api.md) now supports orchestration with explicit
+session identity, observed configuration, per-invocation usage, and confirmed
+process-group cleanup. This source candidate has not been published to npm;
+the released desktop behavior and live-verification record below refer to 0.3.1.
+
 A Claude Code delegation tool for DeepSeek Harness that runs **your local
 `claude` CLI** — no bundled Agent SDK payload, no second Claude Code install —
 and adds the choices the official `@deepseek-ai/dsh-subagent-claude-code`
@@ -70,7 +76,7 @@ subagent_claude_code({
   model: "sonnet",              // alias or full id; omit for the configured/native default
   reasoning_effort: "high",     // low | medium | high | xhigh | max
   permission_mode: "acceptEdits",
-  session_mode: "session",
+  session_mode: "persistent",
   session_id: "…uuid…",         // continue a session a previous run reported
   fork_session: false,
   images: ["/abs/shot.png"],    // handed to Claude as an image, not a path to open
@@ -205,8 +211,8 @@ must be named in `env`.
 - Concurrent delegations spawn concurrent CLI processes. That is fine for most
   work, but the CLI's own credential refresh is shared state; heavy parallelism
   is the CLI's constraint, not something this plugin manages.
-- Windows process-tree cleanup is not implemented; POSIX runs own a process
-  group.
+- Windows delegations are rejected before a CLI process starts because process-tree
+  cleanup is not implemented there; supported POSIX runs own a process group.
 
 ## Troubleshooting / doctor
 
@@ -232,10 +238,13 @@ appears to do nothing.
 
 ## Verification
 
-- `npm test` — 51 deterministic tests against a fake `claude` CLI covering
+- `npm test` — deterministic tests against a fake `claude` CLI covering
   session lifetime, resume repair, multimodal encoding, image delivery and route
   gating, structured output, background jobs, timeout, cancellation, and
   failure classification.
+- Machine-contract tests additionally cover strict configuration/session
+  observations, malformed terminal streams, no-dispatch receipts, and failed
+  process-group probes. See [Machine API v1](docs/machine-api.md).
 - `node scripts/probe-live.mjs` — real-CLI smoke: new session, final text, and a
   resumed turn that recalls the prior message with prompt-cache reuse.
 - Real DSH-session E2E through the installed tool: text, session reuse,

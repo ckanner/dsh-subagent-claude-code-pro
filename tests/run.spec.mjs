@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { buildArguments } from '../lib/cli.js'
 import { userMessageLine } from '../lib/protocol.js'
-import { runClaude } from '../lib/run.js'
+import { runLocalClaude as runClaude } from '../lib/run-local.js'
 import { makeFakeCommand, makeTempDir } from './helpers.mjs'
 
 const UUID = '22222222-2222-4222-8222-222222222222'
