@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Claude Code Pro",
+    "description": "用本地 Claude Code CLI 做委派：每次调用可选模型与思考等级，支持 Session 复用和多模态输入输出。",
+    "detail": "README.zh.md"
+  }
+}

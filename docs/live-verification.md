@@ -1,5 +1,7 @@
 # Live verification record
 
+English | [中文](live-verification.zh.md)
+
 What was exercised against the real products, when, and what it proved. The
 fake-CLI suite complements this: it covers the deterministic branches, while the
 entries below are evidence from the actual `claude` CLI and a real DSH session.

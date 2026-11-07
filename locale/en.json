@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Claude Code Pro",
+    "description": "Use your local Claude Code CLI for delegation with per-call model and effort, durable sessions, and multimodal input/output.",
+    "detail": "README.md"
+  }
+}

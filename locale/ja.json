@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Claude Code Pro",
+    "description": "ローカルの Claude Code CLI に委譲。呼び出しごとのモデルと思考レベル、永続セッション、マルチモーダル入出力に対応。"
+  }
+}

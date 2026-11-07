@@ -1,5 +1,7 @@
 # dsh-subagent-claude-code-pro
 
+English | [中文](README.zh.md)
+
 A Claude Code delegation tool for DeepSeek Harness that runs **your local
 `claude` CLI** — no bundled Agent SDK payload, no second Claude Code install —
 and adds the choices the official `@deepseek-ai/dsh-subagent-claude-code`
@@ -13,10 +15,12 @@ provider cannot express:
 - diagnostics in `~/.dsh/claude-code-pro.log`, because a plugin has no log
   surface a session can read.
 
-> **Status:** `0.3.0` is the first fully live-verified release: text, model-native
-> image and PDF input, image output, `output_schema`, background jobs, and the
-> session core (including fork) were exercised against a real local `claude` CLI
-> and a real DSH session. See `docs/live-verification.md` and `CHANGELOG.md`.
+> **Status:** `0.3.1` is the first fully live-verified release and ships the DSH
+> plugin display metadata (icon, eight locales). Text, model-native image and PDF
+> input, image output, `output_schema`, background jobs, and the session core
+> (including fork) were exercised against a real local `claude` CLI and a real
+> DSH session. See the verification record ([English](docs/live-verification.md) ·
+> [中文](docs/live-verification.zh.md)) and `CHANGELOG.md`.
 
 ## Why this exists
 
@@ -39,18 +43,21 @@ defaults, and login state are exactly the ones they already trust.
 
 ## Install
 
+Install from the npm registry — no local checkout and no `link:` dependency:
+
 ```sh
 dsh plugin --profile <profile> add dsh-subagent-claude-code-pro
-# or, from a checkout:
-# dsh plugin --profile <profile> add /absolute/path/to/dsh-subagent-claude-code-pro
 ```
 
-For the desktop app's managed profile use the app's plugin manager instead; it
-runs the same operation. The bundle adds one root row and registers a per-Agent
-tool named `subagent_claude_code` for the presets named in `presets`. Because the
-tool name is the official one, the scoped registration shadows the official
-global tool for those Agents. Do not mount a second same-name tool row in the
-same scope.
+For the desktop app's managed profile use the app's **Plugins** page →
+**Add plugin** → enter the package name `dsh-subagent-claude-code-pro`; the plugin
+manager runs the same pnpm install. The profile records the installed version
+(for example `0.3.1`), not a path to a working copy.
+
+The bundle adds one root row and registers a per-Agent tool named
+`subagent_claude_code` for the presets named in `presets`. Because the tool name
+is the official one, the scoped registration shadows the official global tool
+for those Agents. Do not mount a second same-name tool row in the same scope.
 
 ## Use
 
@@ -234,7 +241,8 @@ appears to do nothing.
 - Real DSH-session E2E through the installed tool: text, session reuse,
   `fork_session`, image input, image output (a real attachment block reached the
   caller), PDF input, `output_schema`, and a background job all passed. Evidence
-  and commands: [docs/live-verification.md](docs/live-verification.md).
+  and commands: [docs/live-verification.md](docs/live-verification.md)
+  （[中文](docs/live-verification.zh.md)）.
 
 ## Development
 

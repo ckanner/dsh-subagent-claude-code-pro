@@ -1,7 +1,7 @@
 {
   "name": "dsh-subagent-claude-code-pro",
-  "version": "0.3.0",
-  "description": "Claude Code delegation for DeepSeek Harness: local CLI, per-call model and effort, and durable Claude Code sessions you can continue.",
+  "version": "0.3.1",
+  "description": "DeepSeek Harness plugin: Claude Code delegation using your local CLI — per-call model and effort, durable sessions, and multimodal input/output.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -12,10 +12,13 @@
     "lib",
     "scripts",
     "docs",
+    "locale",
     "cordis.patch.yml",
     "README.md",
+    "README.zh.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "icon.svg"
   ],
   "dsh": {
     "bundle": {
@@ -36,6 +39,7 @@
     "dsh",
     "cordis",
     "claude-code",
+    "claude",
     "subagent",
     "delegation"
   ],
@@ -50,5 +54,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "icon": "./icon.svg"
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.1
+
+DSH plugin metadata and bilingual documentation.
+
+- `locale/{de,en,es,fr,ja,pt,ru,zh}.json`: localized title/description for the
+  Plugins page; the Chinese and English locales point `meta.detail` at the
+  matching README so the plugin detail page follows the UI language.
+- `icon.svg` + `package.json` `icon`, so the bundle carries its own original
+  artwork instead of default plugin art.
+- Root `README.zh.md` (Chinese) beside `README.md` (English), plus
+  `docs/live-verification.zh.md`.
+- Package description/keywords aligned with DSH plugin conventions
+  (`dsh-plugin`, `deepseek-harness`, `dsh`, `cordis`, …).
+- Install documentation: registry install (no local `link:`), plugin manager
+  adds the package by name.
+
 ## 0.3.0
 
 First fully live-verified release.

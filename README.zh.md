@@ -1,5 +1,7 @@
 # dsh-subagent-claude-code-pro
 
+[English](README.md) | 中文
+
 DeepSeek Harness 的 Claude Code 委派插件：**直接驱动你本机已登录的 `claude`
 CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官方
 `@deepseek-ai/dsh-subagent-claude-code` 无法表达的几件事：
@@ -11,9 +13,10 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 - 单次委派的 deadline、调用方取消、进程组清理；
 - 诊断日志 `~/.dsh/claude-code-pro.log`（插件没有会话可读的日志面）。
 
-> **状态**：`0.3.0` 是首个完成真实环境全量验证的版本：文本、图片/PDF 输入、
+> **状态**：`0.3.1` 是首个完成真实环境全量验证的版本：文本、图片/PDF 输入、
 > 图片输出、`output_schema`、后台任务、Session（含 fork）均已用本地 `claude`
-> CLI 与真实 DSH 会话跑通。见 `docs/live-verification.md` 与 `CHANGELOG.md`。
+> CLI 与真实 DSH 会话跑通。证据见
+> [docs/live-verification.zh.md](docs/live-verification.zh.md) 与 `CHANGELOG.md`。
 
 ## 为什么要这个插件
 
@@ -34,15 +37,19 @@ CLI 的原生设置、hooks、MCP、模型默认值和登录态保持权威—�
 
 ## 安装
 
+从 npm registry 安装（不需要本地 checkout、不使用 `link:`）：
+
 ```sh
 dsh plugin --profile <profile> add dsh-subagent-claude-code-pro
-# 或从本地检出：
-# dsh plugin --profile <profile> add /absolute/path/to/dsh-subagent-claude-code-pro
 ```
 
-Desktop 应用的托管 profile 请用应用内的插件页安装。bundle 会插入一条 root row，
-并在 `presets` 列出的 preset 会话里注册 `subagent_claude_code` 工具。工具名与官方
-一致，因此这个 per-Agent 注册会遮蔽官方全局工具；同一作用域不要再挂同名工具行。
+Desktop 应用的托管 profile 用应用内的**插件**页 →「添加插件」→ 输入包名
+`dsh-subagent-claude-code-pro` 安装；插件管理器执行同一个 pnpm 安装操作。安装后
+profile 的依赖记录是版本号（例如 `0.3.1`），不是本地路径。
+
+bundle 会插入一条 root row，并在 `presets` 列出的 preset 会话里注册
+`subagent_claude_code` 工具。工具名与官方一致，因此这个 per-Agent 注册会遮蔽官方
+全局工具；同一作用域不要再挂同名工具行。
 
 ## 使用
 
@@ -83,7 +90,7 @@ subagent_claude_code({
 session 只在创建它的 cwd 中、且没有其他委派占用时复用；记忆 session 不存在时自动
 新建并记录原因；`fork_session: true` 分支出新 session。
 
-### 多模态输入与输出
+### 多模态输入
 
 `images` 传绝对路径（PNG/JPEG/GIF/WebP），`documents` 传 PDF 路径。所有附件在
 spawn 之前校验——不存在或超限会让调用失败，而不是起一个缺少文件的委派；随后
@@ -91,9 +98,12 @@ spawn 之前校验——不存在或超限会让调用失败，而不是起一�
 stream-json 用户消息，Claude 原生接收，不需要自己打开文件。其它文件类型继续可以
 在 prompt 里写路径，让 Claude Code 用它自己的 Read 工具读取。
 
-输出方向：Claude Code 工具读图/截图产生的 base64 图片会进入 DSH attachment
-store，并作为 image block 与答案一起返回给父模型（父模型 route 不支持图片时降级
-成文字说明）。后台任务的结果按契约是字符串，图片会写到
+### 图片输出
+
+Claude Code 工具读图/截图产生的 base64 图片会进入 DSH attachment store，并作为
+image block 与答案一起返回给父模型，所以接受图片输入的父模型能直接看到它们。这里
+的任何失败都不会让委派失败：缺少 attachment store、父模型 route 声明不支持图片、
+或图片无法解析，都会降级为文字说明。后台任务的结果按契约是字符串，图片会写到
 `$DSH_HOME/claude-code-pro-images/` 并在文本里给出宿主路径。
 
 ### 结构化输出与后台任务
@@ -161,6 +171,8 @@ doctor 只打印 token 长度，不打印值。
   绝对路径。
 - 子进程使用 CLI 的原生设置、hooks、MCP、plugins、skills；它不是沙箱，权限模式
   才是边界。
+- 图片/PDF 输入与 `--json-schema` 要求 CLI 支持对应 flags（Claude Code 2.1+）。
+  不支持的 flag 会让这次运行失败并带上 CLI 的消息。
 - 并发委派会并发启动 CLI 进程。这通常是可行的，但 CLI 自己的凭据刷新是共享状态，
   重度并发是 CLI 的限制，本插件不接管。
 - Windows 进程树清理尚未实现；POSIX 下按进程组清理。
@@ -192,7 +204,9 @@ model/effort/session/permission/timeout、`system/init` 报告的 CLI 版本与�
   续接并回忆上一轮内容（cache_read 命中）。
 - 安装后的真实 DSH 会话 E2E：文本、session 复用、`fork_session`、图片输入、
   图片输出（真实 attachment block 回到调用方）、PDF 输入、`output_schema`、
-  后台任务均通过。证据见 [docs/live-verification.md](docs/live-verification.md)。
+  后台任务均通过。证据见
+  [docs/live-verification.zh.md](docs/live-verification.zh.md)
+  （英文版：[docs/live-verification.md](docs/live-verification.md)）。
 
 ## 开发
 
