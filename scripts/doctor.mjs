@@ -74,27 +74,26 @@ const missingFlags = requiredFlags.filter((flag) => !helpText.includes(flag))
 report(missingFlags.length === 0, 'CLI flags', missingFlags.length === 0 ? `${requiredFlags.length}/${requiredFlags.length} present` : `missing ${missingFlags.join(', ')}`)
 
 if (process.platform === 'darwin') {
-  const keychain = spawnSync('security', ['find-generic-password', '-s', 'Claude Code-credentials'], {
+  // `-w` prints the stored password (the token JSON) to stdout. It is parsed
+  // here and never printed; only lengths and expiry reach the report.
+  const keychain = spawnSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], {
     encoding: 'utf8',
     timeout: 10_000,
   })
   if (keychain.status !== 0) {
     report(false, 'Claude Code keychain item', 'not found — run `claude auth login`')
   } else {
-    const match = /password: "(.*)"/s.exec(keychain.stdout)
-    let tokenState = 'unparseable'
-    if (match !== null) {
-      try {
-        const oauth = JSON.parse(match[1]).claudeAiOauth ?? {}
-        const accessToken = typeof oauth.accessToken === 'string' ? oauth.accessToken : ''
-        const refreshToken = typeof oauth.refreshToken === 'string' ? oauth.refreshToken : ''
-        tokenState = `accessToken.length=${accessToken.length} refreshToken.length=${refreshToken.length} expiresAt=${String(oauth.expiresAt)}`
-        report(accessToken.length > 0 || refreshToken.length > 0, 'Claude Code keychain tokens', tokenState)
-      } catch {
-        report(false, 'Claude Code keychain tokens', tokenState)
-      }
-    } else {
-      report(false, 'Claude Code keychain tokens', tokenState)
+    try {
+      const oauth = JSON.parse(keychain.stdout.trim()).claudeAiOauth ?? {}
+      const accessToken = typeof oauth.accessToken === 'string' ? oauth.accessToken : ''
+      const refreshToken = typeof oauth.refreshToken === 'string' ? oauth.refreshToken : ''
+      report(
+        accessToken.length > 0 || refreshToken.length > 0,
+        'Claude Code keychain tokens',
+        `accessToken.length=${accessToken.length} refreshToken.length=${refreshToken.length} expiresAt=${String(oauth.expiresAt)}`,
+      )
+    } catch {
+      report(false, 'Claude Code keychain tokens', 'item exists but its value is not the expected OAuth JSON')
     }
   }
 }

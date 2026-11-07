@@ -130,6 +130,23 @@ stops it). Claude Code's own `--bg` is a terminal-session feature, not a tool
 result channel, so the plugin uses the harness mechanism the official subagent
 tools and Codex Pro use.
 
+### Authentication and the CLI's credential store
+
+The plugin never reads, creates, refreshes, or rewrites credentials — the local
+CLI owns them. Two measured operational notes:
+
+- The CLI keeps its OAuth session in the system keychain (macOS) / its config
+  directory. Several CLI processes refreshing the same session concurrently can
+  race; when a refresh fails the CLI may clear the stored tokens and report
+  `OAuth session expired and could not be refreshed`. Run
+  `node scripts/doctor.mjs` and then `claude auth login` when that happens.
+- For unattended or heavily repeated use, prefer a static child credential:
+  `claude setup-token` produces a long-lived token; pass it through the plugin's
+  `env` as `CLAUDE_CODE_OAUTH_TOKEN` (or use `ANTHROPIC_API_KEY`) so the child
+  does not depend on keychain refresh.
+
+The doctor prints token lengths only, never values.
+
 ### Permissions
 
 The default is `dontAsk`, the unattended mode: the CLI never waits for a human,

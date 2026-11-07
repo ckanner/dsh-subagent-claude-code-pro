@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2
+
+- Doctor: read the macOS keychain password entry correctly (never printed) and
+  report token lengths/expiry; `CLAUDE CODE DOCTOR OK` on a healthy login.
+- README/中文文档：记录 OAuth 刷新竞态导致 CLI 清空 token 的现象，以及
+  `claude setup-token` + `env.CLAUDE_CODE_OAUTH_TOKEN` 的静态凭据方案.
+- Verified live in a real DSH session: text, session reuse, image input,
+  instruction reading, `output_schema`, and background job (see README).
+
 ## 0.2.1
 
 - `scripts/doctor.mjs`: local CLI diagnose (version, login, required flags,

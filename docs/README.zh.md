@@ -106,6 +106,20 @@ worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code �
 是终端会话功能，不是工具结果通道，所以这里用官方 subagent 工具与 Codex Pro 相同
 的 harness 机制。
 
+### 认证与 CLI 凭据存储
+
+插件不读取/创建/刷新/改写凭据——凭据完全由本地 CLI 管理。两条实测注意事项：
+
+- CLI 的 OAuth 会话存在系统钥匙串（macOS）/配置目录中。多个 CLI 进程并发刷新同一
+  会话可能产生竞态；刷新失败时 CLI 可能清空已存 token，并报
+  `OAuth session expired and could not be refreshed`。遇到时先跑
+  `node scripts/doctor.mjs`，再 `claude auth login`。
+- 无人值守或高频使用，建议用静态子进程凭据：`claude setup-token` 生成长期 token，
+  通过插件 `env` 传 `CLAUDE_CODE_OAUTH_TOKEN`（或用 `ANTHROPIC_API_KEY`），
+  这样不依赖钥匙串刷新。
+
+doctor 只打印 token 长度，不打印值。
+
 ### 权限
 
 默认 `dontAsk`：无人值守，CLI 不会等待人工，未预先批准的操作一律拒绝
