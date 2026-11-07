@@ -1,0 +1,32 @@
+# This plugin's bundle patch.
+#
+# One root row: the plugin itself. It registers a per-Agent
+# `subagent_claude_code` tool that drives the user's LOCAL `claude` CLI
+# (no bundled Claude Code payload), carries model / effort / permission
+# choices per call, and supports durable Claude Code sessions that later
+# calls can continue.
+#
+# `presets` names the committed Agent presets whose sessions get the tool.
+# The tool is registered into the Agent's own context on `agent/created`
+# (the same path the LCU plugin and Codex Pro use), so a preset needs no
+# delegated row of its own. Because the tool name is the official one
+# (`subagent_claude_code`), this scoped registration shadows the official
+# global tool for these Agents; do not mount a second same-name tool row in
+# the same scope.
+- insert:
+    - id: claude-code-pro
+      name: 'dsh-subagent-claude-code-pro'
+      config:
+        toolName: subagent_claude_code
+        presets: [daily, heavy]
+        # Unattended default: deny anything that was not pre-approved. Change
+        # to `plan` for plan-only review, or `acceptEdits` to let it edit.
+        permissionMode: dontAsk
+        # `session`: one durable Claude Code session per DSH Agent session,
+        # automatically continued by later delegations. `persistent`: a new
+        # durable session per call whose id is reported. `ephemeral`: nothing
+        # is written that could be resumed.
+        sessionMode: session
+        # `command` defaults to `claude` on PATH. Set it to an absolute path
+        # when the DSH desktop app's PATH does not include the CLI.
+        runTimeoutMs: 600000

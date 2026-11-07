@@ -1,0 +1,167 @@
+# dsh-subagent-claude-code-pro
+
+A Claude Code delegation tool for DeepSeek Harness that runs **your local
+`claude` CLI** — no bundled Agent SDK payload, no second Claude Code install —
+and adds the choices the official `@deepseek-ai/dsh-subagent-claude-code`
+provider cannot express:
+
+- **a model and a thinking level per call** (`--model`, `--effort`);
+- **durable Claude Code sessions that later calls can continue**
+  (`--session-id` / `--resume`, or one session per DSH Agent session);
+- the permission mode a call may narrow, never widen;
+- a per-delegation deadline, caller cancellation, and process-group cleanup;
+- diagnostics in `~/.dsh/claude-code-pro.log`, because a plugin has no log
+  surface a session can read.
+
+> **Status:** `0.1.0` implements the text + session core. Model-native image and
+> document input, image output, `output_schema`, and background jobs are the
+> next milestone and are tracked in `CHANGELOG.md`.
+
+## Why this exists
+
+The official provider is deliberately a one-shot adapter over the bundled Agent
+SDK:
+
+- it always starts a fresh SDK query and sets `persistSession: false`;
+- it rejects non-text prompt blocks;
+- its harness row cannot expose `model` or `reasoning_effort`
+  (`NO_START_CAPABILITIES`, no `agentOptions`);
+- DSH's subagent seam treats externally executed children as one-shot, so it
+  cannot accept follow-up messages or resume at all.
+
+This plugin owns its model-facing tool instead, the same registration path Codex
+Pro uses (`ctx.on('agent/created')` → `agent.ctx.tools.register`), and speaks to
+the local CLI over the public `--print --input-format stream-json
+--output-format stream-json` shape. The CLI a person installed and
+authenticated stays authoritative: native settings, hooks, MCP servers, model
+defaults, and login state are exactly the ones they already trust.
+
+## Install
+
+```sh
+dsh plugin --profile <profile> add dsh-subagent-claude-code-pro
+# or, from a checkout:
+# dsh plugin --profile <profile> add /absolute/path/to/dsh-subagent-claude-code-pro
+```
+
+For the desktop app's managed profile use the app's plugin manager instead; it
+runs the same operation. The bundle adds one root row and registers a per-Agent
+tool named `subagent_claude_code` for the presets named in `presets`. Because the
+tool name is the official one, the scoped registration shadows the official
+global tool for those Agents. Do not mount a second same-name tool row in the
+same scope.
+
+## Use
+
+The model-facing tool takes a self-contained task:
+
+```js
+subagent_claude_code({
+  description: "Fix the redirect loop",
+  prompt: "…complete task; you cannot see this conversation…",
+  model: "sonnet",              // alias or full id; omit for the configured/native default
+  reasoning_effort: "high",     // low | medium | high | xhigh | max
+  permission_mode: "acceptEdits",
+  session_mode: "session",
+  session_id: "…uuid…",         // continue a session a previous run reported
+  fork_session: false,
+  cwd: "/abs/path",
+  timeout_ms: 600000,
+})
+```
+
+A completed human-text answer ends with a marker so the model can continue the
+conversation deliberately:
+
+```
+[claude-code session 3b5585e1-… · persistent · pass it as session_id to continue]
+```
+
+### Session lifetime
+
+| `sessionMode` | Behaviour |
+|---|---|
+| `session` (default) | One durable Claude Code session per DSH Agent session; later delegations continue it automatically. Cache-friendly, intended for sequential work. |
+| `persistent` | A durable session per call; the id is reported and can be continued explicitly. Independent tasks do not share context. |
+| `ephemeral` | `--no-session-persistence`: nothing is written that can be resumed. |
+
+Rules: an explicit `session_id` always continues that session (a failed resume
+is reported, never silently replaced); a remembered session is reused only in
+the directory it was created in and only when no other delegation is using it;
+a remembered session that no longer exists is repaired by starting a fresh one,
+with the reason in the diagnostic log. `fork_session: true` branches a continued
+session into a new id.
+
+### Permissions
+
+The default is `dontAsk`, the unattended mode: the CLI never waits for a human,
+and anything not already approved is denied (`--permission-prompts none`). A call
+may narrow the configured policy, never widen it. Use `plan` for planning-only
+work and `acceptEdits`/`auto`/`bypassPermissions` only by changing the plugin
+configuration explicitly.
+
+## Configuration
+
+```yaml
+- id: claude-code-pro
+  name: 'dsh-subagent-claude-code-pro'
+  config:
+    toolName: subagent_claude_code   # the official name; override to coexist
+    command: claude                  # or an absolute path
+    presets: [daily, heavy]
+    modelSelection: true             # expose model / reasoning_effort
+    permissionMode: dontAsk          # plan | dontAsk | acceptEdits | auto | bypassPermissions
+    sessionMode: session             # ephemeral | persistent | session
+    runTimeoutMs: 600000             # 0 disables the deadline
+    model: sonnet                    # optional default
+    reasoningEffort: high            # optional default
+    settingSources: [user, project, local]
+    env: {}                          # only the entries the child really needs
+    disposeGraceMs: 3000
+```
+
+The child environment is the ambient environment minus `DSH_*` and minus
+credential-shaped names (`KEY`, `PASSWORD`, `SECRET`, `TOKEN`); explicit `env`
+entries are applied afterwards. This keeps harness deployment secrets out of a
+process a model can talk to, and means an API key or relay token the child needs
+must be named in `env`.
+
+## Requirements and caveats
+
+- A local `claude` CLI that is logged in. The plugin never logs in, refreshes,
+  or rewrites credentials. `claude auth status` should say `loggedIn: true`.
+- `claude --version` ≥ 2.1 is assumed; the protocol is the SDK's stream-json
+  line format and may gain or change capabilities between CLI releases. The
+  plugin tolerates unknown events and fails closed on an unreadable result.
+- The DSH desktop app captures its environment at launch. If `claude` is not on
+  that PATH, set `command` to an absolute path.
+- The child runs with the CLI's native settings, hooks, MCP servers, plugins and
+  skills. It is not a sandbox: the permission mode is the boundary.
+- Concurrent delegations spawn concurrent CLI processes. That is fine for most
+  work, but the CLI's own credential refresh is shared state; heavy parallelism
+  is the CLI's constraint, not something this plugin manages.
+- Windows process-tree cleanup is not implemented; POSIX runs own a process
+  group.
+
+## Diagnostics
+
+`~/.dsh/claude-code-pro.log` records the applied configuration (not `env`
+values), each delegation's resolved model/effort/session/permission/timeout, the
+CLI version and model reported on `system/init`, completion or failure category,
+cleanup confirmation, and cache-read tokens. Read it first when a delegation
+appears to do nothing.
+
+## Development
+
+```sh
+npm test             # deterministic; uses tests/fixtures/fake-claude.mjs
+node scripts/probe-live.mjs   # real CLI smoke test; needs a logged-in local CLI
+```
+
+The fake CLI speaks the same stream-json shape, so session reuse, resume repair,
+timeouts, cancellation, auth failures, and protocol failures are covered without
+network access.
+
+## License
+
+MIT.

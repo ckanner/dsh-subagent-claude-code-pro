@@ -1,0 +1,52 @@
+{
+  "name": "dsh-subagent-claude-code-pro",
+  "version": "0.1.0",
+  "description": "Claude Code delegation for DeepSeek Harness: local CLI, per-call model and effort, and durable Claude Code sessions you can continue.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "docs/README.zh.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test \"tests/*.spec.mjs\"",
+    "probe": "node scripts/probe-live.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "claude-code",
+    "subagent",
+    "delegation"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/ckanner/dsh-subagent-claude-code-pro#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ckanner/dsh-subagent-claude-code-pro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ckanner/dsh-subagent-claude-code-pro/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
