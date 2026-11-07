@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0
+
+Multimodal and machine-readable delegations.
+
+- Model-native input: `images` (PNG/JPEG/GIF/WebP) and `documents` (PDF) become
+  Anthropic `image` / `document` content blocks; every path is validated before
+  the CLI is spawned.
+- Image output: base64 images from `tool_result` frames are saved through the
+  DSH attachment store and returned as image blocks, gated by the parent model
+  route's declared input modalities; failures become text notes.
+- `output_schema` via `--json-schema`, with a fail-closed local validator and
+  pure-JSON delivery (no session marker).
+- Background runs through the DSH jobs service: `run_in_background` returns a
+  job id, `job_output`/`job_kill` work as with Codex Pro; background images are
+  written to `$DSH_HOME/claude-code-pro-images/` and named in the job text.
+- 51 deterministic tests.
+
 ## 0.1.0
 
 Initial text + session core.

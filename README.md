@@ -13,9 +13,9 @@ provider cannot express:
 - diagnostics in `~/.dsh/claude-code-pro.log`, because a plugin has no log
   surface a session can read.
 
-> **Status:** `0.1.0` implements the text + session core. Model-native image and
-> document input, image output, `output_schema`, and background jobs are the
-> next milestone and are tracked in `CHANGELOG.md`.
+> **Status:** `0.2.0` implements text, model-native image and PDF input, image
+> output, `output_schema`, background jobs, and the session core. See
+> `CHANGELOG.md`.
 
 ## Why this exists
 
@@ -65,6 +65,10 @@ subagent_claude_code({
   session_mode: "session",
   session_id: "…uuid…",         // continue a session a previous run reported
   fork_session: false,
+  images: ["/abs/shot.png"],    // handed to Claude as an image, not a path to open
+  documents: ["/abs/spec.pdf"], // handed to Claude as a document
+  output_schema: { … },         // the answer must be JSON conforming to this schema
+  run_in_background: false,     // return a DSH job id instead of waiting
   cwd: "/abs/path",
   timeout_ms: 600000,
 })
@@ -91,6 +95,40 @@ the directory it was created in and only when no other delegation is using it;
 a remembered session that no longer exists is repaired by starting a fresh one,
 with the reason in the diagnostic log. `fork_session: true` branches a continued
 session into a new id.
+
+### Multimodal input
+
+`images` takes absolute paths (PNG, JPEG, GIF, WebP) and `documents` takes PDF
+paths. They are checked before anything is spawned — a nonexistent or oversized
+attachment fails the call instead of starting a run without the file the task was
+about — then encoded as Anthropic Messages API `image` / `document` blocks in the
+stream-json user message. Claude receives them natively; it is not asked to open
+a file itself. Other file types stay referenceable by path in the prompt, because
+Claude Code can read them with its own tools.
+
+### Images out
+
+Claude Code can look at pictures and take screenshots; those arrive as base64
+image blocks inside `tool_result` messages. The plugin hands them to the DSH
+attachment store and returns image blocks beside the answer, so a parent model
+that accepts images sees them. Nothing here can fail the delegation: a missing
+store, a parent route that declares no image input, or an unreadable payload
+becomes a text note instead. A background run's result is a string by contract,
+so its images are written under `$DSH_HOME/claude-code-pro-images/` and reported
+as host paths in that text.
+
+### Structured output and background runs
+
+`output_schema` becomes the CLI's `--json-schema`: the final answer is JSON, the
+plugin re-validates it against a supported schema subset and fails closed on a
+non-JSON or non-conforming answer. A schema-constrained result stays pure JSON
+(no session marker).
+
+With DSH's jobs service mounted, `run_in_background: true` returns a job id at
+once; the delegation runs in a jobs worker (`job_output` collects it, `job_kill`
+stops it). Claude Code's own `--bg` is a terminal-session feature, not a tool
+result channel, so the plugin uses the harness mechanism the official subagent
+tools and Codex Pro use.
 
 ### Permissions
 
@@ -137,6 +175,8 @@ must be named in `env`.
   that PATH, set `command` to an absolute path.
 - The child runs with the CLI's native settings, hooks, MCP servers, plugins and
   skills. It is not a sandbox: the permission mode is the boundary.
+- PDF/image input and `--json-schema` assume a CLI that supports those flags
+  (Claude Code 2.1+). An unsupported flag fails the run with the CLI's message.
 - Concurrent delegations spawn concurrent CLI processes. That is fine for most
   work, but the CLI's own credential refresh is shared state; heavy parallelism
   is the CLI's constraint, not something this plugin manages.

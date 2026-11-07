@@ -11,8 +11,8 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 - 单次委派的 deadline、调用方取消、进程组清理；
 - 诊断日志 `~/.dsh/claude-code-pro.log`（插件没有会话可读的日志面）。
 
-> **状态**：`0.1.0` 完成文本 + Session 核心。图片/PDF 输入、图片输出、
-> `output_schema`、后台任务属于下一阶段，进度见 `CHANGELOG.md`。
+> **状态**：`0.2.0` 完成文本 + Session 核心、图片/PDF 输入、图片输出、
+> `output_schema`、后台任务。见 `CHANGELOG.md`。
 
 ## 为什么要这个插件
 
@@ -55,6 +55,10 @@ subagent_claude_code({
   session_mode: "session",
   session_id: "…uuid…",         // 续接上一次结果里报告的 session
   fork_session: false,
+  images: ["/abs/shot.png"],    // 作为图片交给 Claude，而不是让它自己打开
+  documents: ["/abs/spec.pdf"], // 作为文档交给 Claude
+  output_schema: { … },         // 最终答案必须是符合该 schema 的 JSON
+  run_in_background: false,     // 立即返回 DSH job id
   cwd: "/abs/path",
   timeout_ms: 600000,
 })
@@ -77,6 +81,30 @@ subagent_claude_code({
 规则：显式 `session_id` 永远续接该 session（续接失败报错，绝不悄悄换）；记忆中的
 session 只在创建它的 cwd 中、且没有其他委派占用时复用；记忆 session 不存在时自动
 新建并记录原因；`fork_session: true` 分支出新 session。
+
+### 多模态输入与输出
+
+`images` 传绝对路径（PNG/JPEG/GIF/WebP），`documents` 传 PDF 路径。所有附件在
+spawn 之前校验——不存在或超限会让调用失败，而不是起一个缺少文件的委派；随后
+编码成 Anthropic Messages API 的 `image` / `document` content block 放进
+stream-json 用户消息，Claude 原生接收，不需要自己打开文件。其它文件类型继续可以
+在 prompt 里写路径，让 Claude Code 用它自己的 Read 工具读取。
+
+输出方向：Claude Code 工具读图/截图产生的 base64 图片会进入 DSH attachment
+store，并作为 image block 与答案一起返回给父模型（父模型 route 不支持图片时降级
+成文字说明）。后台任务的结果按契约是字符串，图片会写到
+`$DSH_HOME/claude-code-pro-images/` 并在文本里给出宿主路径。
+
+### 结构化输出与后台任务
+
+`output_schema` 映射为 CLI 的 `--json-schema`：最终答案是 JSON，插件用受支持的
+schema 子集二次校验，非 JSON 或不合规即失败关闭；带 schema 的结果保持纯 JSON，
+不追加 session marker。
+
+挂载了 DSH jobs 服务时，`run_in_background: true` 立刻返回 job id，委派在 jobs
+worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code 自己的 `--bg`
+是终端会话功能，不是工具结果通道，所以这里用官方 subagent 工具与 Codex Pro 相同
+的 harness 机制。
 
 ### 权限
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { apply } from '../lib/index.js'
@@ -13,7 +13,7 @@ function setup(overrides = {}) {
   const state = overrides.state ?? makeTempDir('ccpro-state-')
   const logDir = makeTempDir('ccpro-log-')
   const log = join(logDir, 'spawn.log')
-  const { ctx, emit } = makeContext()
+  const { ctx, emit } = makeContext(overrides.services ?? {})
   apply(ctx, {
     command,
     presets: overrides.presets ?? ['daily'],
@@ -28,9 +28,13 @@ function setup(overrides = {}) {
       ...(overrides.env ?? {}),
     },
   })
-  const { agent, tools } = makeAgent(makeTempDir('ccpro-cwd-'), { preset: overrides.preset ?? 'daily' })
+  const cwd = makeTempDir('ccpro-cwd-')
+  const { agent, tools } = makeAgent(cwd, {
+    preset: overrides.preset ?? 'daily',
+    ...(overrides.requestHeader === undefined ? {} : { requestHeader: overrides.requestHeader }),
+  })
   emit('agent/created', { agent })
-  return { agent, tools, emit, log, state }
+  return { agent, tools, emit, log, state, cwd }
 }
 
 function spawnLog(logPath) {
@@ -160,4 +164,147 @@ test('an invalid cwd is refused before anything is spawned', async () => {
   const { tools, log } = setup()
   await assert.rejects(execute(tools[0], { cwd: '/nonexistent/ccpro-cwd' }), /does not exist/)
   assert.equal(spawnLog(log).length, 0)
+})
+
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+)
+
+/** Write a temporary file and return its absolute path. */
+function writeTemp(name, bytes) {
+  const directory = makeTempDir('ccpro-file-')
+  const path = join(directory, name)
+  writeFileSync(path, bytes)
+  return path
+}
+
+test('images travel as model-native image blocks', async () => {
+  const image = writeTemp('shot.png', TINY_PNG)
+  const { tools, log } = setup()
+  await execute(tools[0], { prompt: 'look at this', images: [image] })
+  const run = spawnLog(log).at(-1)
+  const block = run.userContent.find((item) => item.type === 'image')
+  assert.ok(block)
+  assert.equal(block.source.type, 'base64')
+  assert.equal(block.source.media_type, 'image/png')
+})
+
+test('a missing image fails before anything is spawned', async () => {
+  const { tools, log } = setup()
+  await assert.rejects(
+    execute(tools[0], { prompt: 'x', images: ['/nonexistent/picture.png'] }),
+    /does not exist/,
+  )
+  assert.equal(spawnLog(log).length, 0)
+})
+
+test('an unsupported attachment type is refused', async () => {
+  const file = writeTemp('notes.txt', Buffer.from('hello'))
+  const { tools } = setup()
+  await assert.rejects(execute(tools[0], { prompt: 'x', images: [file] }), /unsupported image type/)
+})
+
+test('PDF documents travel as document blocks', async () => {
+  const pdf = writeTemp('spec.pdf', Buffer.from('%PDF-1.4\nfake pdf bytes\n%%EOF\n'))
+  const { tools, log } = setup()
+  await execute(tools[0], { prompt: 'read the pdf', documents: [pdf] })
+  const run = spawnLog(log).at(-1)
+  const block = run.userContent.find((item) => item.type === 'document')
+  assert.ok(block)
+  assert.equal(block.source.media_type, 'application/pdf')
+})
+
+test('tool-result images are delivered as attachment blocks', async () => {
+  const attachments = {
+    saveImages: async (payloads) => payloads.map((payload, index) => ({
+      attachmentId: `att-${index}`,
+      mediaType: payload.mediaType,
+      bytes: payload.data.length,
+      width: 1,
+      height: 1,
+    })),
+  }
+  const { tools } = setup({ mode: 'image-output', services: { attachments } })
+  const result = await execute(tools[0], { prompt: 'take a screenshot' })
+  const image = result.content.find((block) => block.type === 'image')
+  assert.ok(image)
+  assert.equal(image.attachment.attachmentId, 'att-0')
+  assert.match(textOf(result), /image captured/)
+})
+
+test('images are withheld from a text-only parent route', async () => {
+  const attachments = { saveImages: async () => [{ attachmentId: 'att-x' }] }
+  const llm = { resolveModelInfo: async () => ({ inputModalities: ['text'] }) }
+  const { tools } = setup({
+    mode: 'image-output',
+    services: { attachments, llm },
+    requestHeader: () => ({ config: { provider: 'deepseek', model: 'text-only' } }),
+  })
+  const result = await execute(tools[0], { prompt: 'take a screenshot' })
+  assert.ok(!result.content.some((block) => block.type === 'image'))
+  assert.match(textOf(result), /not delivered: this model route declares no image input/)
+})
+
+test('an image with no attachment store becomes a text note', async () => {
+  const { tools } = setup({ mode: 'image-output' })
+  const result = await execute(tools[0], { prompt: 'take a screenshot' })
+  assert.ok(!result.content.some((block) => block.type === 'image'))
+  assert.match(textOf(result), /not delivered: no attachment store is mounted/)
+})
+
+test('output_schema returns validated JSON and no session marker', async () => {
+  const { tools } = setup()
+  const result = await execute(tools[0], {
+    prompt: 'answer',
+    output_schema: {
+      type: 'object',
+      properties: { answer: { type: 'integer' } },
+      required: ['answer'],
+      additionalProperties: false,
+    },
+  })
+  const text = textOf(result)
+  assert.deepEqual(JSON.parse(text), { answer: 42 })
+  assert.doesNotMatch(text, /claude-code session/)
+})
+
+test('a schema-constrained answer that is not JSON fails closed', async () => {
+  const { tools } = setup({ mode: 'bad-structured' })
+  await assert.rejects(
+    execute(tools[0], { prompt: 'x', output_schema: { type: 'object' } }),
+    /non-JSON/,
+  )
+})
+
+test('run_in_background returns a DSH job id and completes with text', async () => {
+  const jobs = {
+    started: [],
+    start(spec) {
+      this.started.push(spec)
+      return 'job-42'
+    },
+  }
+  const { tools } = setup({ services: { jobs } })
+  const value = await execute(tools[0], { prompt: 'background work', run_in_background: true })
+  assert.deepEqual(value, { kind: 'background', jobId: 'job-42' })
+  const spec = jobs.started[0]
+  assert.equal(spec.kind, 'subagent')
+  assert.equal(spec.label, 'probe')
+  assert.equal(spec.owner, 'agent-1')
+  const handle = { appended: '', append(text) { this.appended += text }, updateProgress() {} }
+  const work = spec.run(handle)
+  const outcome = await work.done
+  assert.equal(outcome.status, 'completed')
+  assert.match(outcome.result, /echo:background work/)
+})
+
+test('background images are reported as host paths in the job text', async () => {
+  const jobs = { started: [], start(spec) { this.started.push(spec); return 'job-7' } }
+  const { tools } = setup({ mode: 'image-output', services: { jobs } })
+  await execute(tools[0], { prompt: 'screenshot forever', run_in_background: true })
+  const handle = { append() {}, updateProgress() {} }
+  const outcome = await jobs.started[0].run(handle).done
+  assert.equal(outcome.status, 'completed')
+  assert.match(outcome.result, /\[1 image: .*claude-code-pro-images/)
 })

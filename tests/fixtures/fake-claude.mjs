@@ -85,6 +85,29 @@ if (mode === 'resume-missing' && resumedId !== undefined) {
   process.exit(1)
 }
 
+/** A 1x1 PNG, enough to be a real image block. */
+const IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+if (mode === 'image-output') {
+  const answer = 'image captured'
+  init()
+  emit({
+    type: 'user',
+    session_id: sessionId,
+    message: {
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'toolu_fake',
+        content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: IMAGE_BASE64 } }],
+      }],
+    },
+  })
+  emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: answer }] } })
+  result({ subtype: 'success', is_error: false, result: answer })
+  process.exit(0)
+}
+
 if (mode === 'no-result') {
   init()
   emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: 'partial' }] } })
@@ -110,10 +133,19 @@ if (stateDir !== undefined) {
   writeFileSync(file, JSON.stringify({ prompt }))
 }
 
-const answer = prior === '' ? `echo:${prompt}` : `prior:${prior}|echo:${prompt}`
+let answer = prior === '' ? `echo:${prompt}` : `prior:${prior}|echo:${prompt}`
+/** When a schema is supplied the fake answers machine-readable JSON, as the CLI would. */
+let structured
+if (has('--json-schema')) {
+  if (mode === 'bad-structured') {
+    answer = 'not json'
+  } else {
+    structured = { answer: 42 }
+    answer = JSON.stringify(structured)
+  }
+}
 init()
 emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: answer }] } })
-const structured = has('--json-schema') ? { answer: 42 } : undefined
 result({
   subtype: 'success',
   is_error: false,

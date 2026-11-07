@@ -18,7 +18,7 @@
       name: 'dsh-subagent-claude-code-pro'
       config:
         toolName: subagent_claude_code
-        presets: [daily, heavy]
+        presets: [daily, heavy, cordis]
         # Unattended default: deny anything that was not pre-approved. Change
         # to `plan` for plan-only review, or `acceptEdits` to let it edit.
         permissionMode: dontAsk

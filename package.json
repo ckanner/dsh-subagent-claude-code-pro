@@ -1,6 +1,6 @@
 {
   "name": "dsh-subagent-claude-code-pro",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code delegation for DeepSeek Harness: local CLI, per-call model and effort, and durable Claude Code sessions you can continue.",
   "type": "module",
   "main": "lib/index.js",

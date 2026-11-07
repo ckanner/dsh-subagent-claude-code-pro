@@ -28,12 +28,12 @@ export function makeTempDir(prefix = 'ccpro-') {
  *
  * @returns {{ ctx: any, emit: (event: string, ...args: any[]) => void, handlers: Map<string, Function> }}
  */
-export function makeContext() {
+export function makeContext(services = {}) {
   /** @type {Map<string, Function>} */
   const handlers = new Map()
   const ctx = {
     /** @param {string} name */
-    get: () => undefined,
+    get: (name) => services[name],
     /**
      * @param {string} event
      * @param {Function} handler
@@ -62,7 +62,11 @@ export function makeAgent(cwd, options = {}) {
   const tools = []
   const agent = {
     id: options.id ?? 'agent-1',
-    session: { header: { cwd, agentPreset: options.preset ?? 'daily' } },
+    options: options.options,
+    session: {
+      header: { cwd, agentPreset: options.preset ?? 'daily' },
+      ...(options.requestHeader === undefined ? {} : { requestHeader: options.requestHeader }),
+    },
     ctx: {
       tools: {
         /** @param {any} definition */
