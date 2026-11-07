@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, symlinkSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { MACHINE_PROTOCOL_VERSION, MachineInputError, parseMachineRequest, runMachine } from 'dsh-subagent-claude-code-pro/machine'
@@ -62,7 +62,9 @@ test('cwd canonicalization and no-setting-source requests reach the CLI exactly'
   symlinkSync(f.cwd, link)
   const receipt = await f.run({ cwd: link, settingSources: [], timeoutMs: 0 })
   assert.equal(receipt.ok, true)
-  assert.equal(receipt.requested.cwd, f.cwd)
+  assert.equal(receipt.requested.cwd, realpathSync(f.cwd))
+  assert.notEqual(receipt.requested.cwd, link)
+  assert.equal(receipt.configuration.observed.cwd, receipt.requested.cwd)
   assert.deepEqual(receipt.requested.settingSources, [])
   const args = f.calls()[0].args
   assert.equal(args[args.indexOf('--setting-sources') + 1], '')
