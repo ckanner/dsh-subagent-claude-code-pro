@@ -120,7 +120,7 @@ worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code �
   config:
     toolName: subagent_claude_code
     command: claude                  # 或绝对路径
-    presets: [daily, heavy]
+    presets: [daily, heavy, cordis]
     modelSelection: true
     permissionMode: dontAsk
     sessionMode: session
@@ -149,6 +149,18 @@ worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code �
 - 并发委派会并发启动 CLI 进程。这通常是可行的，但 CLI 自己的凭据刷新是共享状态，
   重度并发是 CLI 的限制，本插件不接管。
 - Windows 进程树清理尚未实现；POSIX 下按进程组清理。
+
+## 排障 / doctor
+
+本地 CLI 自检，不发模型请求：
+
+```sh
+node scripts/doctor.mjs
+```
+
+输出可执行文件/版本、`claude auth status`、插件依赖的 CLI flags，以及 macOS 上
+Claude Code 钥匙串项是否真的有 token（只打印长度与过期时间，不打印值）。有问题时
+退出码非 0。委派返回 `category: auth` 时先跑这个。
 
 ## 诊断
 

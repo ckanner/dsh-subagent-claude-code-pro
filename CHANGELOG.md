@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- `scripts/doctor.mjs`: local CLI diagnose (version, login, required flags,
+  macOS keychain token lengths) with actionable next steps; `npm run doctor`.
+- README/中文文档补充排障入口。
+- Packaging verified with `npm pack --dry-run` (lib, patch, docs, license).
+
 ## 0.2.0
 
 Multimodal and machine-readable delegations.

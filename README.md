@@ -146,7 +146,7 @@ configuration explicitly.
   config:
     toolName: subagent_claude_code   # the official name; override to coexist
     command: claude                  # or an absolute path
-    presets: [daily, heavy]
+    presets: [daily, heavy, cordis]
     modelSelection: true             # expose model / reasoning_effort
     permissionMode: dontAsk          # plan | dontAsk | acceptEdits | auto | bypassPermissions
     sessionMode: session             # ephemeral | persistent | session
@@ -182,6 +182,20 @@ must be named in `env`.
   is the CLI's constraint, not something this plugin manages.
 - Windows process-tree cleanup is not implemented; POSIX runs own a process
   group.
+
+## Troubleshooting / doctor
+
+A local CLI check that sends no model request:
+
+```sh
+node scripts/doctor.mjs
+```
+
+It reports the executable/version, `claude auth status`, the CLI flags this
+plugin drives, and (on macOS) whether the Claude Code keychain item actually
+holds tokens — lengths and expiry only, never the values. Exit code is non-zero
+when something must be fixed. A failing doctor is the first thing to run when a
+delegation returns `category: auth`.
 
 ## Diagnostics
 
