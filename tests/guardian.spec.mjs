@@ -15,7 +15,9 @@ async function absent(group) {
   while (Date.now() < end) {
     try { process.kill(-group, 0) } catch (error) {
       if (error.code === 'ESRCH') return
-      throw error
+      // macOS may report EPERM while an orphaned guardian is exiting.
+      // Keep waiting: only ESRCH establishes that its group is absent.
+      if (error.code !== 'EPERM') throw error
     }
     await pause(20)
   }
