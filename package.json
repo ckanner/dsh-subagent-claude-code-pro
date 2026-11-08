@@ -1,6 +1,6 @@
 {
   "name": "dsh-subagent-claude-code-pro",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "DeepSeek Harness plugin: Claude Code delegation using your local CLI — per-call model and effort, durable sessions, and multimodal input/output.",
   "type": "module",
   "main": "lib/index.js",
@@ -31,6 +31,7 @@
   },
   "scripts": {
     "test": "node --test \"tests/*.spec.mjs\"",
+    "test:package": "node scripts/verify-machine-package.mjs",
     "probe": "node scripts/probe-live.mjs",
     "doctor": "node scripts/doctor.mjs"
   },

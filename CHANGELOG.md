@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 (source candidate, unreleased)
+
+- Add lifecycle v1 with awaited pre-prompt dispatch-intent and dispatch-possible
+  checkpoints, independent from display-only progress. Expose the explicit
+  threadReadyBeforeDispatch:false capability: stream-json does not prove the
+  effective init configuration before prompt delivery.
+- Add a separately grouped machine supervisor that outlives caller death,
+  completes native guardian cleanup and durably saves the original receipt.
+  Lost terminal delivery does not relabel completed work as cancelled.
+- Add private exclusive fsynced journals and read-only recoverMachine; no CLI
+  spawn, resume, history scan, automatic fresh run or exactly-once claim.
+- Preserve native process dispatch and add execution.turnDispatch for the
+  model-request boundary. Costs and incomplete usage keep their original meaning.
+- Add real process-group SIGKILL and ACK rejection regression tests, typed public
+  contracts and bilingual lifecycle documentation. This remains unpublished
+  source; it does not update installed CLI/desktop accounts or claim live testing.
+
 ## 0.3.2 (source candidate, unreleased)
 
 - Add public `dsh-subagent-claude-code-pro/machine` protocol v1 with TypeScript

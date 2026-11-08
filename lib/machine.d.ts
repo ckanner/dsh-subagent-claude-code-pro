@@ -1,5 +1,9 @@
-/** Terminal-only public machine contract. Native permissions are not OS sandboxes. */
+/** Public machine and lifecycle contracts. Native permissions are not OS sandboxes. */
 export const MACHINE_PROTOCOL_VERSION: 1
+export const MACHINE_LIFECYCLE_VERSION: 1
+export const MACHINE_LIFECYCLE_CAPABILITIES: Readonly<{
+  version: 1; durableJournal: true; readOnlyRecovery: true; threadReadyBeforeDispatch: false
+}>
 export class MachineInputError extends Error {}
 export type PermissionMode = 'plan' | 'dontAsk' | 'acceptEdits' | 'auto' | 'bypassPermissions'
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -26,6 +30,10 @@ export interface MachineRuntime {
   /** Explicit secrets for the child; never copied into a receipt. */
   credentialEnv?: Partial<Record<'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN' | 'CLAUDE_CODE_OAUTH_TOKEN' | 'ANTHROPIC_BASE_URL', string>>
   onProgress?: (text: string) => void
+  /** Resolve only after durably saving this checkpoint; rejection stops dispatch. */
+  onLifecycle?: (event: MachineLifecycleEvent) => Promise<void> | void
+  /** New private directory below an existing canonical parent; never reused. */
+  recoveryDirectory?: string
 }
 export interface MachineReceipt {
   protocol: 1
@@ -47,6 +55,8 @@ export interface MachineReceipt {
     processGroupId: number | null
     ownership: 'process-group' | 'none'
     dispatch: 'not-dispatched' | 'dispatched'
+    /** Prompt boundary, separate from whether a native CLI process was spawned. */
+    turnDispatch: 'not-dispatched' | 'possible' | 'accepted'
     outcome: 'not-started' | 'completed' | 'failed' | 'unknown'
     terminalReceived: boolean
     exitCode: number | null
@@ -85,3 +95,39 @@ export interface MachineReceipt {
 }
 export function parseMachineRequest(input: unknown): Readonly<MachineRequest>
 export function runMachine(input: MachineRequest, runtime?: MachineRuntime): Promise<MachineReceipt>
+export interface MachineLifecycleEvent {
+  lifecycleVersion: 1
+  type: 'lifecycle'
+  requestId: string
+  runId: string
+  sequence: number
+  event: 'dispatch-intent' | 'dispatch-possible' | 'terminal' | 'cleanup-confirmed'
+  /** Proposed session before dispatch; only configuration/receipt prove it opened. */
+  threadId: string | null
+  /** Claude stream-json exposes no stable per-turn identity. */
+  turnId: null
+  /** Requested persistence, not independent proof of resumability. */
+  persistent: boolean
+  configuration: MachineReceipt['configuration'] | null
+  dispatch: 'not-dispatched' | 'possible' | 'accepted'
+  outcome: 'unknown' | 'completed' | 'failed' | 'cancelled'
+  cleanupConfirmed: boolean
+}
+export interface MachineRecoveryRequest {
+  protocol: 1
+  requestId: string
+  runId: string
+  recoveryDirectory: string
+}
+export interface MachineRecoveryReceipt {
+  protocol: 1
+  type: 'recovery'
+  requestId: string
+  runId: string
+  status: 'terminal' | 'pending' | 'unknown'
+  receipt: MachineReceipt | null
+  lifecycle: MachineLifecycleEvent | null
+  reason: string
+}
+/** Read only the explicitly identified journal; never spawns, resumes or replays. */
+export function recoverMachine(input: MachineRecoveryRequest): Promise<MachineRecoveryReceipt>

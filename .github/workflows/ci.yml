@@ -25,3 +25,5 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Test
         run: npm test
+      - name: Install and exercise the packed public machine lifecycle
+        run: npm run test:package

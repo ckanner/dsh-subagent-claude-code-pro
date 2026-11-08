@@ -28,8 +28,9 @@ if (receipt.ok && receipt.session.resumable) {
 ```
 
 完整类型随包发布，见 [`lib/machine.d.ts`](../lib/machine.d.ts)。公开导出为
-`MACHINE_PROTOCOL_VERSION`、`MachineInputError`、`parseMachineRequest` 和
-`runMachine`。需要 macOS/Linux 与 Node.js 22.18.0 或以上，以及用户已安装、
+`MACHINE_PROTOCOL_VERSION`、`MachineInputError`、`parseMachineRequest`、
+`runMachine`；0.4.0 源码候选还提供 `MACHINE_LIFECYCLE_VERSION`、
+`MACHINE_LIFECYCLE_CAPABILITIES` 与 `recoverMachine`。详见[生命周期协议](machine-lifecycle.zh.md)。需要 macOS/Linux 与 Node.js 22.18.0 或以上，以及用户已安装、
 已登录的本地 Claude Code CLI；接口不捆绑 Claude，也不负责登录。
 
 ## 请求与会话身份
@@ -99,7 +100,8 @@ failure。各字段的意义为：
 
 调用者负责持久保存回执，隔离任务与角色，核对候选、预算和重放条件。新建会话
 不会使前一次未知执行变得可重放。worker 在回执返回前被强杀时仍可能结果未知；
-本接口不提供早期持久化确认、只读 recovery API 或任意崩溃点恢复保证。
+0.4.0 可显式启用[派发前持久化意图确认与只读恢复](machine-lifecycle.zh.md)，
+但仍不提供任意崩溃点自动重放或 exactly-once 保证。
 除 `MachineInputError` 外，没有回执的 promise rejection 不能证明“未派发”。
 
 物理监督在**启动原生 CLI 之前**建立：独立进程组中的 guardian 自行启动并拥有
