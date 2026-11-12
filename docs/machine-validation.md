@@ -1,6 +1,6 @@
 # Machine API source-candidate validation — 2026-11-07
 
-This record covers the 0.3.2 source candidate and public machine protocol v1.
+This record covers the 0.3.2 machine API (shipped in 0.4.0) and public machine protocol v1.
 The released 0.3.1 real-account/desktop record remains separate. No npm version,
 release tag, user account or existing desktop installation was changed.
 

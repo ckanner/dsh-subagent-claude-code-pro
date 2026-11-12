@@ -1,6 +1,6 @@
 # Typed lifecycle and read-only recovery (lifecycle 1)
 
-The **0.4.0 unreleased source candidate** extends the public
+**0.4.0** extends the public
 `dsh-subagent-claude-code-pro/machine` JavaScript API. Result protocol 1 and the
 existing DSH desktop tool remain compatible. No npm publication or live account
 upgrade is implied by a source change.

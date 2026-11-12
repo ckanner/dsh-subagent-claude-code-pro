@@ -1,7 +1,7 @@
 # Machine API v1
 
 The `dsh-subagent-claude-code-pro/machine` package export was introduced in the
-0.3.2 source candidate and extended by the **0.4.0 source candidate**. It is a public, dependency-free ESM interface for an
+0.3.2 machine API and extended by **0.4.0**. It is a public, dependency-free ESM interface for an
 orchestrator such as Flywheel. Adding this source change does not publish a new
 npm version or upgrade an existing desktop installation.
 
@@ -31,7 +31,7 @@ if (receipt.ok && receipt.session.resumable) {
 The complete TypeScript contract is shipped in
 [`lib/machine.d.ts`](../lib/machine.d.ts). Runtime exports are
 `MACHINE_PROTOCOL_VERSION`, `MachineInputError`, `parseMachineRequest`, and
-`runMachine`. The 0.4.0 source candidate also exports `MACHINE_LIFECYCLE_VERSION`,
+`runMachine`. 0.4.0 also exports `MACHINE_LIFECYCLE_VERSION`,
 `MACHINE_LIFECYCLE_CAPABILITIES`, and `recoverMachine`; see the
 [lifecycle contract](machine-lifecycle.md). Node.js 22.18.0 or newer and macOS/Linux are required. The caller
 must supply an installed, authenticated local Claude Code CLI; this package

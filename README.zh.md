@@ -1,9 +1,9 @@
 # dsh-subagent-claude-code-pro
 
-**0.4.0 源码候选：**新增公开、带类型的
+**0.4.0：**新增公开、带类型的
 [`/machine` API](docs/machine-api.zh.md)，供调度器使用显式会话身份、实际配置
 证据、逐次用量与进程组清理回执，以及[持久化检查点与只读恢复](docs/machine-lifecycle.zh.md)。
-不会虚构 Claude prompt 发送前的配置握手。该候选尚未发布 npm；下文已发布桌面版本及
+不会虚构 Claude prompt 发送前的配置握手。0.4.0 已发布到 npm；下文的桌面版本及
 真实账号验收记录对应 0.3.1。
 
 [English](README.md) | 中文

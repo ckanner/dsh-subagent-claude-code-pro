@@ -2,13 +2,13 @@
 
 English | [中文](README.zh.md)
 
-**0.4.0 source candidate:** a public, typed
+**0.4.0:** a public, typed
 [`/machine` API](docs/machine-api.md) now supports orchestration with explicit
 session identity, observed configuration, per-invocation usage, and confirmed
 process-group cleanup. It also provides durable pre-prompt checkpoints and
 [read-only recovery](docs/machine-lifecycle.md), without inventing a Claude
-pre-prompt configuration handshake. This source candidate has not been published to npm;
-the released desktop behavior and live-verification record below refer to 0.3.1.
+pre-prompt configuration handshake. 0.4.0 is now published to npm; the desktop behavior and live-verification
+record below still refer to 0.3.1.
 
 A Claude Code delegation tool for DeepSeek Harness that runs **your local
 `claude` CLI** — no bundled Agent SDK payload, no second Claude Code install —

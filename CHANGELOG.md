@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (source candidate, unreleased)
+## 0.4.0 (2026-11-12)
 
 - Add lifecycle v1 with awaited pre-prompt dispatch-intent and dispatch-possible
   checkpoints, independent from display-only progress. Expose the explicit
@@ -17,7 +17,7 @@
   contracts and bilingual lifecycle documentation. This remains unpublished
   source; it does not update installed CLI/desktop accounts or claim live testing.
 
-## 0.3.2 (source candidate, unreleased)
+## 0.3.2 (machine API precursor, shipped in 0.4.0)
 
 - Add public `dsh-subagent-claude-code-pro/machine` protocol v1 with TypeScript
   declarations, strict request admission, explicit ephemeral/persistent/resumed

@@ -1,6 +1,6 @@
 # Lifecycle 1 validation record
 
-Validated on 2026-11-08 against the **0.4.0 unreleased source candidate**,
+Validated on 2026-11-08 against **0.4.0**,
 based on repository commit `28483f8aafc15463c6d365100b64c04480cb56b5`.
 The local environment was Linux with Node 24.22.1 and npm 12.2.1. This does
 not claim an npm release, a local macOS run, or a new live Claude account test.

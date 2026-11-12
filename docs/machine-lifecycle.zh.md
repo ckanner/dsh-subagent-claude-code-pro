@@ -1,6 +1,6 @@
 # 结构化生命周期与只读恢复（lifecycle 1）
 
-**0.4.0 未发布源码候选**为公开
+**0.4.0** 为公开
 `dsh-subagent-claude-code-pro/machine` JavaScript API 增加检查点与恢复。
 结果协议仍为 1，原 DSH 桌面工具保持兼容；源码更新不代表 npm 已发行或账号已升级。
 
