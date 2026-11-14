@@ -24,11 +24,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Install desktop development peers
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Inspect installed desktop peer capabilities and capture lock (temporary)
-        run: |
-          node --input-type=module -e "import Schema from '@deepseek-ai/schemastery'; import * as paths from '@deepseek-ai/dsh-home-paths'; console.log('DESKTOP_PEERS', {volatile: typeof Schema.object({}).volatile, pathExports: Object.keys(paths)});"
-          node -e "const fs=require('node:fs'); console.log('CLAUDE_LOCK_BEGIN'); console.log(fs.readFileSync('package-lock.json','utf8')); console.log('CLAUDE_LOCK_END');"
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Test
         run: npm test
       - name: Verify real DSH schemas and generated PTC tool bindings
