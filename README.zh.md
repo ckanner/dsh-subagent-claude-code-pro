@@ -24,6 +24,10 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 > CLI 与真实 DSH 会话跑通。证据见
 > [docs/live-verification.zh.md](docs/live-verification.zh.md) 与 `CHANGELOG.md`。
 
+## 0.5.0 原生机器能力
+
+本次源码候选新增原生 Agent／Workflow／advisor、图片与结构化输出、独立云端 Review，以及通过隔离 tmux 终端运行的真实交互式 Team。完整工具和原生权限保持可用；计量、运行身份、取消、恢复和远端未决责任分别记录。并发配置存在原生例外，回执明确报告 `resourceBounds.hard=false`。详见[完整能力契约与验证范围](docs/native-capabilities.md)。未填写 `native` 的既有请求保持原有行为。
+
 ## 为什么要这个插件
 
 官方 provider 是刻意的一次性 SDK 适配器：
@@ -227,7 +231,3 @@ fake CLI 说同样的 stream-json 协议，因此 session 复用、续接修复�
 ## License
 
 MIT。
-
-## Native machine capabilities / 原生能力
-
-The 0.5.0 source candidate adds native Agent/Workflow/advisor controls, media/schema support, independent cloud-review jobs, and actual interactive Team sessions. See [the complete contract and native limits](docs/native-capabilities.md). Existing absent-native requests retain their behavior.
