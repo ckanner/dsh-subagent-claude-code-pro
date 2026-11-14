@@ -29,8 +29,10 @@ try {
   const request = { protocol: 1, requestId: 'packed-call', prompt: 'Exercise the installed machine entry.', cwd: temp,
     command, model: 'sonnet', effort: 'high', permissionMode: 'bypassPermissions', sessionMode: 'persistent', timeoutMs: 5000 }
   writeFileSync(join(installed, 'consumer.mjs'),
-    'import { runMachine, recoverMachine, MACHINE_LIFECYCLE_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
+    'import { runMachine, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
     + 'const request = ' + JSON.stringify(request) + '; const directory = ' + JSON.stringify(join(temp, 'journal')) + ';\n'
+    + 'if (MACHINE_NATIVE_CAPABILITIES.version !== 1 || typeof runNativeReview !== "function" || typeof recoverNativeJob !== "function") throw new Error("native exports missing");\n'
+    + 'const native = await runMachine({...request, native:{version:1}}); if (!native.ok || !native.native.effective.matched) throw new Error("native configuration missing");\n'
     + 'const events = []; const receipt = await runMachine(request, { recoveryDirectory: directory, onLifecycle: e => { events.push(e.event); } });\n'
     + 'const recovered = await recoverMachine({ protocol: 1, requestId: receipt.requestId, runId: receipt.runId, recoveryDirectory: directory });\n'
     + 'if (!receipt.ok || JSON.stringify(recovered.receipt) !== JSON.stringify(receipt)) throw new Error("installed lifecycle mismatch");\n'
