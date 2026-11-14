@@ -151,7 +151,13 @@ test('native mismatches and unresolved remote work fail instead of reporting roo
   for(const mode of ['native-mismatch','native-remote']) {
     const f=setup(t,{native:mode==='native-mismatch'?{version:1}:on,mode})
     await assert.rejects(call(f.tool),error=>{
-      assert.match(error.message,mode==='native-mismatch'?/configuration-mismatch|protocol/:/cleanup-unconfirmed/)
+      if(mode==='native-mismatch') {
+        // The native guard may terminate before the root terminal frame arrives.
+        // Assert the cause/evidence, independent of that process scheduling race.
+        assert.equal(error.run?.native?.effective?.matched,false)
+        assert.match(error.run?.native?.diagnostic,/system\/init did not confirm the requested native tool surface/)
+        assert.equal(error.run?.cleanupConfirmed,true)
+      } else assert.match(error.message,/cleanup-unconfirmed/)
       assert.match(error.message,/native=/)
       assert.equal(error.run?.native?.cleanup?.confirmed,mode==='native-remote'?false:true)
       return true
