@@ -79,6 +79,8 @@ Agent or per-workflow worker counts exceed their requested limits. This is an
 observation after native dispatch, not a pre-dispatch semaphore; missing child
 events cannot establish exact concurrency. A host with a strict budget must keep
 unknown usage unresolved before admitting additional work.
+Queued Agent/Task tool requests do not count as active workers; the observation
+guard requires a started task-run identity and excludes historical snapshots.
 
 ## Media and structured output
 

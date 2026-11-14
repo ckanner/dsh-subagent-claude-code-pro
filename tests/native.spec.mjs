@@ -125,6 +125,21 @@ test('observed native overrun is a protocol failure and workflow limits have the
   assert.match(collector.nativeReport().diagnostic, /subagents exceeded/)
 })
 
+test('queued Agent tool calls do not masquerade as active native workers', () => {
+  const collector = createCollector({ native: { version: 1, agents: { enabled: true, maxConcurrent: 1 } } })
+  collector.accept({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  collector.accept({ type: 'assistant', session_id: 'root', message: { content: [
+    { type: 'tool_use', name: 'Agent', id: 'first', input: {} },
+    { type: 'tool_use', name: 'Agent', id: 'queued', input: {} },
+  ] } })
+  assert.equal(collector.invalid, false)
+  collector.accept({ type: 'system', subtype: 'task_started', session_id: 'root', task_id: 'first-task', run_id: 'first-run', task_type: 'local_agent', tool_use_id: 'first' })
+  assert.equal(collector.invalid, false)
+  collector.accept({ type: 'system', subtype: 'task_started', session_id: 'root', task_id: 'second-task', run_id: 'second-run', task_type: 'local_agent', tool_use_id: 'queued' })
+  assert.equal(collector.invalid, true)
+  assert.match(collector.nativeReport().diagnostic, /subagents exceeded/)
+})
+
 test('native Workflow completion can trigger a correlated follow-up result without counting snapshots twice', () => {
   const collector = createCollector({ native: { version: 1, agents: { enabled: true }, workflows: { enabled: true } } })
   collector.accept({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent', 'Workflow'], agents: [] })
