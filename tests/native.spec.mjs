@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, chmodSync } from 'node:fs'
+import { readFileSync, chmodSync, realpathSync, symlinkSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { makeFakeCommand, makeTempDir } from './helpers.mjs'
@@ -14,6 +14,24 @@ function fixture(mode = 'normal') {
     permissionMode: 'bypassPermissions', sessionMode: 'ephemeral', model: 'sonnet', effort: 'high', timeoutMs: 5000 },
     runtime: { env: { ...process.env, FAKE_CLAUDE_MODE: mode, FAKE_CLAUDE_LOG: log } } }
 }
+
+test('durable native fixtures use physical paths when the OS temporary directory is aliased', async t => {
+  const directory = makeTempDir('cc-native-temp-root-'), alias = join(directory, 'alias')
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  symlinkSync(directory, alias, 'dir')
+  const previous = process.env.TMPDIR
+  let f
+  try {
+    process.env.TMPDIR = alias
+    f = fixture()
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR
+    else process.env.TMPDIR = previous
+  }
+  assert.equal(f.cwd, realpathSync(f.cwd))
+  const receipt = await runMachine(f.request, { ...f.runtime, recoveryDirectory: join(f.cwd, 'journal'), onLifecycle: async () => {} })
+  assert.equal(receipt.ok, true, JSON.stringify(receipt))
+})
 
 test('native controls are explicit, bounded and process-scoped', () => {
   const f = fixture()

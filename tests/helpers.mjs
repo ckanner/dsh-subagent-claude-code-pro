@@ -2,7 +2,7 @@
  * Shared test helpers: a fake `claude` command and a minimal Cordis context.
  */
 
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,16 +11,16 @@ export const fixturePath = fileURLToPath(new URL('./fixtures/fake-claude.mjs', i
 
 /** Create an executable shell wrapper that runs the fake CLI with node. */
 export function makeFakeCommand() {
-  const dir = mkdtempSync(join(tmpdir(), 'ccpro-bin-'))
+  const dir = makeTempDir('ccpro-bin-')
   const script = join(dir, 'claude')
   writeFileSync(script, `#!/bin/sh\nexec "${process.execPath}" "${fixturePath}" "$@"\n`)
   chmodSync(script, 0o755)
   return script
 }
 
-/** Create a fresh temporary directory. */
+/** Create a physical temporary directory (macOS /var may be a symlink). */
 export function makeTempDir(prefix = 'ccpro-') {
-  return mkdtempSync(join(tmpdir(), prefix))
+  return realpathSync(mkdtempSync(join(tmpdir(), prefix)))
 }
 
 /**
