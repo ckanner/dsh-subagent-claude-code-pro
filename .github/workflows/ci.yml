@@ -31,5 +31,7 @@ jobs:
           node -e "const fs=require('node:fs'); console.log('CLAUDE_LOCK_BEGIN'); console.log(fs.readFileSync('package-lock.json','utf8')); console.log('CLAUDE_LOCK_END');"
       - name: Test
         run: npm test
+      - name: Verify real DSH schemas and generated PTC tool bindings
+        run: npm run test:host
       - name: Install and exercise the packed public machine lifecycle
         run: npm run test:package

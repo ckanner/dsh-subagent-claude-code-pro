@@ -13,6 +13,184 @@ read-only helper tool set. Claude permission modes remain tool-approval policies
 not operating-system sandboxes; a root `bypassPermissions` can override a child's
 plan permission mode under Claude's own rules.
 
+
+## Desktop settings and PTC tools
+
+The 0.5.0 candidate also exposes these capabilities from the DSH plugin itself.
+Open **Plugins → dsh-subagent-claude-code-pro → Claude Code Pro row → Configure**.
+The native JSON editor saves through DSH's revision-checked settings form. A failed
+write keeps the draft. **Reset user override** removes the saved native field and
+reveals the profile value; it does not replace that value with an empty object.
+**Edit to all off** prepares `null` for an explicit save. Loading an example or
+changing settings starts no Claude job.
+
+The runtime Config has one live field, `native`. Every invocation captures its
+current immutable value. Ordinary CLI, credential and permission defaults remain
+profile configuration. Settings reject the same invalid versions, unknown fields,
+disabled-section leftovers, malformed definitions and size limits as the machine
+native validator. The Plugins page is a real browser entry owned by this package;
+a Config schema alone does not provide that page.
+
+| Desktop/PTC input | Effective behavior |
+| --- | --- |
+| Call omits `native` | Read the current plugin native default once for this call. |
+| Call and plugin both omit it | Keep the existing Claude CLI native behavior. |
+| Call supplies an object | Replace the entire plugin native value; omitted capabilities are off. |
+| Call supplies `native:null` | Explicitly turn Agent, Workflow, Advisor and print-mode Teams off. |
+| Section says `enabled:false` | It must contain no active model/definition/limit fields. |
+
+The same whole-value semantics apply to plugin defaults. Clearing a user override
+can expose a native default already present in the profile. An explicit null is
+different from clearing that override. The machine API continues to require an
+explicit versioned object for off (`{version:1}`); its requests do not inherit
+desktop settings.
+
+A complete default can be configured in the page or profile:
+
+```yaml
+native:
+  version: 1
+  agents:
+    enabled: true
+    maxConcurrent: 4
+    maxDepth: 2
+    definitions:
+      implementer:
+        description: Complete and verify one module
+        prompt: Implement the full task with the approved native tools.
+        model: sonnet
+        maxTurns: 20
+  workflows:
+    enabled: true
+    maxConcurrent: 4
+  advisor:
+    enabled: true
+    model: opus
+```
+
+Definitions may also specify `tools`, `disallowedTools` and
+`permissionMode`. Omitting a tool list preserves the native approved tool
+surface. A definition cannot select permissions broader than the current root
+mode. With `modelSelection:false`, configured native model defaults still
+work, but a call cannot add/change a model or remove a configured child model
+while keeping agents enabled. It must retain the complete protected definition
+models or explicitly turn that capability off; no hidden deep merge occurs.
+
+The DSH outer transport remains PTC. Inside `run_code`, call the registered
+tool through the generated TypeScript SDK:
+
+```ts
+const delegated = await tools.subagent_claude_code({
+  description: "Implement the migration",
+  prompt: "Complete and verify the migration; use the configured native agents and workflows.",
+});
+inspect(delegated.content);
+inspect(delegated.native);
+
+// A complete per-call replacement; other native capabilities are off.
+const single = await tools.subagent_claude_code({
+  description: "Inspect the change",
+  prompt: "Review the implementation using the approved tools.",
+  native: { version: 1, agents: { enabled: true, maxConcurrent: 2 } },
+});
+inspect(single.native);
+```
+
+Native controls are real `--agents`, `--advisor`,
+`--settings`, deny-tool arguments and scoped environment variables. The
+plugin does not translate a request into a restricted helper prompt. The native
+receipt retains requested/effective settings, child events and models, non-additive
+usage, completion and cleanup. Background progress includes native events and the
+terminal native summary. A structured `output_schema` result stays pure
+JSON in both foreground and background modes; metadata and image-delivery notes
+are not appended to the JSON.
+
+Automatic session reuse now requires the same effective native/model/effort/
+permission/setting-source/environment snapshot as well as workspace and idle
+state. Changing live defaults starts a fresh automatic session. An explicit known
+session with a different snapshot is refused. An external session not previously
+bound by this plugin may be resumed: controls are supplied again on that
+invocation and its init tool surface is checked. The receipt still lists the
+native fields that the CLI cannot introspect; this is not a guarantee of advisor,
+concurrency or child-permission reflection, nor a pre-prompt configuration ACK.
+Native mismatch, pending child work and unresolved remote cleanup prevent a
+successful ordinary delegation result.
+
+### Explicit desktop Review and Team jobs
+
+The second PTC tool is `subagent_claude_code_native_job` (or
+`<toolName>_native_job` when renamed). Its actions are separate from
+ordinary native defaults:
+
+| Action | Start/control contract |
+| --- | --- |
+| `review` | Every request requires `consent:true`. Launch actual `ultrareview --json --no-post`; `trust_workspace` is separately explicit. |
+| `team` | Launch an actual interactive tmux/Claude session. Reuse native defaults/whole replacement rules, and require agents enabled. If native is entirely unset, this explicitly selected operation enables its required Agent capability. |
+| `recover` | Read exactly the durable job owned by the current Agent. Never launch, replay or search external histories. |
+| `control` | On an owned Team, use capture/send/resize/attach/cancel. Before interactive-ready it reports pending; use DSH `job_kill` to stop a registered job even before readiness. |
+
+Review and Team **always return a DSH background job id**, so an aborted outer
+call does not leave an unidentifiable foreground cloud operation. Both require
+the jobs service. `job_output` retrieves the complete JSON receipt;
+`job_kill` invokes the real supervisor cancellation. Agent disposal is
+handled by DSH's job ownership cleanup. Plugin reload does not independently kill
+accepted jobs; their registered DSH job handles continue to own them.
+
+```ts
+const review = await tools.subagent_claude_code_native_job({
+  action: "review", description: "Native cloud review",
+  consent: true, target: "main",
+  timeout_minutes: 45, timeout_ms: 2730000,
+});
+inspect(review); // {kind:"background", jobId, operation:"native-review"}
+
+const team = await tools.subagent_claude_code_native_job({
+  action: "team", prompt: "Form a team to implement and cross-review the feature.",
+  native: { version: 1, agents: { enabled: true, maxConcurrent: 4 } },
+});
+inspect(team);
+
+// On a later call after interactive-ready:
+inspect(await tools.subagent_claude_code_native_job({
+  action: "control", job_id: team.jobId, control: "capture",
+}));
+inspect(await tools.subagent_claude_code_native_job({
+  action: "recover", job_id: review.jobId,
+}));
+```
+
+`timeout_ms` defaults to the plugin deadline; `timeout_minutes`
+is the distinct ultrareview CLI waiting limit. Set coherent values for a long
+review. Team also accepts columns/rows, the permitted root model/effort/permission
+overrides, and cwd. The installed tmux executable defaults to PATH; the trusted
+profile can set `tmuxCommand` to an absolute path. A tool call cannot choose
+a command, journal directory, process id or socket.
+
+Ownership mappings and exclusive machine journals live under
+`$DSH_HOME/data/claude-code-pro/native-jobs/` in private per-Agent hash
+directories. The job id is persisted even if DSH defers starting its runner.
+The first awaited lifecycle checkpoint durably maps the native request/run id
+before dispatch ACK. Recovery and controls accept only the returned job id and
+verify the current Agent owner; they never adopt another Agent's job. Mapping
+files do not contain credentials. Explicitly configured Anthropic API/auth,
+Claude OAuth and Anthropic base URL values use the machine credential channel,
+so the ambient-secret filter does not discard an intentional credential.
+
+A review receipt with `ok:false` is a failed/killed DSH job, even when the
+API promise resolved normally. After review cancellation the local process can
+be confirmed stopped while the cloud responsibility remains unknown. Recovery
+preserves that fact and cannot authorize replay. A Team pane's clean exit is
+still `completion.businessOutcome:'unknown'`; terminal capture is
+display text, not structured proof of task completion.
+
+The package keeps `./machine` independent of DSH/React. Desktop Schema and
+home-path helpers are optional host peers; the browser uses the host's React.
+The packed machine consumer test installs no DSH peers and exercises the public
+API independently. CI additionally validates published DSH and the pinned current
+desktop's actual JSON-schema/PTC projection for every model-selection/background
+combination, so unsupported schema vocabulary cannot erase the generated SDK
+arguments.
+
 ## Normal machine queries
 
 ```js

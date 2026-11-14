@@ -2,6 +2,13 @@
 
 ## 0.5.0 (source candidate)
 
+- Add the plugin's live native Config field and an actual Plugins-row browser configuration page with whole-value set/reset, revision fencing and retained drafts after conflicts.
+- Expose inherited/per-call/off native controls through the existing PTC delegation path, actual CLI argv/settings/environment, native events, completion checks and configuration-aware session reuse. Preserve structured JSON in foreground and background results.
+- Keep configured child/advisor model defaults under modelSelection:false, reject call-level model changes or removal while still enabled, and keep child permission choices within the root policy.
+- Add the separate PTC native-job tool: explicit-consent remote review and actual interactive Teams always receive owned DSH background job ids; recover/control use private durable mapping and original machine journals, with real cancellation and truthful failed/killed outcomes.
+- Match the current DSH supported schema vocabulary so PTC SDK argument and job-id types remain visible; validate actual published/current schema codegen, real serialized Config, React settings and CLI/job fixtures in CI.
+- Keep the public machine import independent of optional DSH desktop peers and verify an installed consumer without those peers. No new paid account acceptance or npm publication is claimed.
+
 - Add optional native Agent/Workflow/advisor controls and explicit process-scoped off controls while preserving protocol 1 and existing account behavior.
 - Track native child/task/run identities, models and deduplicated usage metadata without confusing child results with root completion.
 - Keep opaque resumed-run identities stable under late and replayed events; cancel observed concurrency overruns and report native limit exceptions without claiming a hard process bound.

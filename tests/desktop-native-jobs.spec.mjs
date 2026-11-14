@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync, rmSync, existsSync, writeFileSync, mkdirSync, chmodSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { apply, resolveConfig } from '../lib/index.js'
 import { createNativeJobTool } from '../lib/desktop-native-jobs.js'
 import { MachineJournal } from '../lib/machine-recovery.js'
@@ -24,12 +25,12 @@ function registry() {
     return id
   }}
 }
-function setup(t,{mode='normal',env={},owner='native-owner',jobs=registry()}={}) {
+function setup(t,{mode='normal',env={},owner='native-owner',jobs=registry(),tmuxCommand}={}) {
   const cwd=makeTempDir('ccpro-desktop-job-'),log=join(cwd,'calls')
   t.after(async()=>{for(const record of jobs?.records??[]) {record.running.cancel();await record.running.done}rmSync(cwd,{recursive:true,force:true})})
   const {ctx,emit}=makeContext({jobs})
-  apply(ctx,{command:makeFakeCommand(),presets:['daily'],runTimeoutMs:5000,disposeGraceMs:50,
-    env:{FAKE_CLAUDE_MODE:mode,FAKE_CLAUDE_LOG:log,...env}})
+  apply(ctx,{command:makeFakeCommand(),tmuxCommand,presets:['daily'],runTimeoutMs:5000,disposeGraceMs:50,
+    env:{FAKE_CLAUDE_MODE:mode,FAKE_CLAUDE_LOG:log,FAKE_TMUX_HOME:cwd,...env}})
   const {agent,tools}=makeAgent(cwd,{id:owner})
   emit('agent/created',{agent})
   return {cwd,log,tool:tools[1],jobs,owner}
@@ -133,4 +134,50 @@ test('ownership records refuse symlink substitution',async t=>{
   writeFileSync(copy,readFileSync(path),{mode:0o600})
   rmSync(path);symlinkSync(copy,path)
   await assert.rejects(f.tool.execute({action:'recover',job_id:started.jobId}))
+})
+
+test('PTC team entry actually enables the terminal Team CLI and settles real control/cancel lifecycle',async t=>{
+  const tmuxCommand=fileURLToPath(new URL('./fixtures/fake-tmux.mjs',import.meta.url))
+  chmodSync(tmuxCommand,0o755)
+  const f=setup(t,{mode:'team-hang',tmuxCommand})
+  const prior=process.env.FAKE_TMUX_HOME
+  process.env.FAKE_TMUX_HOME=f.cwd
+  t.after(()=>{if(prior===undefined)delete process.env.FAKE_TMUX_HOME;else process.env.FAKE_TMUX_HOME=prior})
+  const started=await f.tool.execute({action:'team',prompt:'Implement complete feature',native:{version:1,agents:{enabled:true,maxConcurrent:2},workflows:{enabled:true,maxConcurrent:3},advisor:{enabled:true,model:'opus'}}})
+  const record=f.jobs.records[0],deadline=Date.now()+4000
+  let settled=false;record.running.done.then(()=>{settled=true})
+  while(!record.progress.some(line=>line.includes('interactive-ready'))&&!settled&&Date.now()<deadline)await new Promise(r=>setTimeout(r,10))
+  assert.ok(record.progress.some(line=>line.includes('interactive-ready')),JSON.stringify(record.progress))
+  const captured=await f.tool.execute({action:'control',job_id:started.jobId,control:'capture'})
+  assert.equal(captured.text,'TEAM_OUTPUT\n')
+  await f.tool.execute({action:'control',job_id:started.jobId,control:'send',text:'finish fully'})
+  await f.tool.execute({action:'control',job_id:started.jobId,control:'resize',columns:100,rows:30})
+  const attach=await f.tool.execute({action:'control',job_id:started.jobId,control:'attach'})
+  assert.equal(attach.command,tmuxCommand)
+  const cancel=await f.tool.execute({action:'control',job_id:started.jobId,control:'cancel'})
+  assert.equal(cancel.requested,true)
+  assert.equal(cancel.cleanupConfirmed,false)
+  const outcome=await record.running.done,receipt=JSON.parse(outcome.result)
+  assert.equal(outcome.status,'killed')
+  assert.equal(receipt.cleanup.confirmed,true,JSON.stringify(receipt))
+  assert.equal(receipt.completion.businessOutcome,'unknown')
+  const native=logLines(f.log)[0]
+  assert.equal(native.args.includes('-p'),false)
+  assert.equal(native.args[native.args.indexOf('--teammate-mode')+1],'in-process')
+  assert.equal(native.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS,'1')
+  assert.equal(native.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS,'2')
+  assert.equal(native.env.CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS,'3')
+  assert.equal(native.args[native.args.indexOf('--advisor')+1],'opus')
+})
+
+test('job identity is recoverable before a deferred DSH runner starts',async t=>{
+  const cwd=makeTempDir('ccpro-job-admission-');t.after(()=>rmSync(cwd,{recursive:true,force:true}))
+  let spec
+  const jobs={start:value=>{spec=value;return 'deferred-'+Date.now()}}
+  const tool=createNativeJobTool({agent:{id:'deferred-owner'},config:resolveConfig({command:makeFakeCommand()}),jobs,cwd})
+  const started=await tool.execute({action:'review',consent:true})
+  const recovered=await tool.execute({action:'recover',job_id:started.jobId})
+  assert.equal(recovered.status,'pending')
+  assert.match(recovered.reason,/No acknowledged lifecycle/)
+  assert.equal(typeof spec.run,'function')
 })

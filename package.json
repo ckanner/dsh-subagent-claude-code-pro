@@ -42,7 +42,8 @@
     "test": "node --test \"tests/*.spec.mjs\"",
     "test:package": "node scripts/verify-machine-package.mjs",
     "probe": "node scripts/probe-live.mjs",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "test:host": "node scripts/verify-dsh-contract.mjs"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -86,6 +87,8 @@
     "@deepseek-ai/schemastery": "3.19.0",
     "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
     "react": "18.3.1",
-    "react-test-renderer": "18.3.1"
+    "react-test-renderer": "18.3.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-tool-executor-ptc": "0.2.2-rc.3"
   }
 }
