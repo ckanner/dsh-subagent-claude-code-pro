@@ -30,6 +30,8 @@ try {
     command, model: 'sonnet', effort: 'high', permissionMode: 'bypassPermissions', sessionMode: 'persistent', timeoutMs: 5000 }
   writeFileSync(join(installed, 'consumer.mjs'),
     'import { runMachine, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
+    + 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);\n'
+    + 'for (const peer of ["@deepseek-ai/schemastery", "@deepseek-ai/dsh-home-paths"]) { try { require.resolve(peer); throw new Error("machine consumer unexpectedly installed " + peer); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; } }\n'
     + 'const request = ' + JSON.stringify(request) + '; const directory = ' + JSON.stringify(join(temp, 'journal')) + ';\n'
     + 'if (MACHINE_NATIVE_CAPABILITIES.version !== 1 || typeof runNativeReview !== "function" || typeof recoverNativeJob !== "function") throw new Error("native exports missing");\n'
     + 'const native = await runMachine({...request, native:{version:1}}); if (!native.ok || !native.native.effective.matched) throw new Error("native configuration missing");\n'

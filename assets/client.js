@@ -24,7 +24,7 @@ window.__ModuleLoader__.load({
       saved: 'Saved. Future delegations use the new defaults; running jobs retain their starting snapshot.',
     }
     const example = { version: 1, agents: { enabled: true, maxConcurrent: 4, maxDepth: 2,
-      definitions: { analyst: { description: 'Read-only analysis', prompt: 'Analyze the task and report evidence.', tools: ['Read', 'Grep', 'Glob'], permissionMode: 'plan' } } },
+      definitions: { implementer: { description: 'Complete implementation', prompt: 'Implement the requested task fully and verify the result using the approved tools.' } } },
       workflows: { enabled: true, maxConcurrent: 2 }, advisor: { enabled: false } }
     const serialize = value => value === undefined ? '' : JSON.stringify(value, null, 2)
     function validate(value) {
@@ -50,6 +50,7 @@ window.__ModuleLoader__.load({
         if (v.definitions !== undefined) {
           if (!v.definitions || typeof v.definitions !== 'object' || Array.isArray(v.definitions) || Object.keys(v.definitions).length > 128) throw new Error('definitions must be an object of at most 128 agents')
           for (const [name,d] of Object.entries(v.definitions)) {
+            if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(name)) throw new Error('invalid agent definition name: ' + name)
             object(d, ['description','prompt','tools','disallowedTools','model','permissionMode','maxTurns'], 'definition ' + name)
             for (const field of ['description','prompt']) if (typeof d[field] !== 'string' || !d[field].trim()) throw new Error(name + '.' + field + ' is required')
             for (const field of ['tools','disallowedTools']) if (d[field] !== undefined && (!Array.isArray(d[field]) || d[field].some(t => typeof t !== 'string' || !t.trim()))) throw new Error(name + '.' + field + ' must contain tool names')
