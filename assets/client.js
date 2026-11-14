@@ -1,7 +1,8 @@
 // Host-owned React, slots and configuration form; no private DSH runtime imports.
 window.__ModuleLoader__.load({
   id: 'dsh-subagent-claude-code-pro',
-  factory: function(require, exports) {
+  factory: function(require) {
+    const exports = {}
     const React = require('react')
     const h = React.createElement
     const zh = typeof navigator !== 'undefined' && navigator.language?.startsWith('zh')
@@ -107,5 +108,6 @@ window.__ModuleLoader__.load({
         name:'plugins.row.config',key:'dsh-subagent-claude-code-pro#claude-code-pro',
       }, NativeSettings)), 'claude-code-pro native settings')
     }
+    return exports
   },
 })
