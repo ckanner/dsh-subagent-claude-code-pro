@@ -24,9 +24,11 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 > CLI 与真实 DSH 会话跑通。证据见
 > [docs/live-verification.zh.md](docs/live-verification.zh.md) 与 `CHANGELOG.md`。
 
-## 0.5.0 原生机器能力
+## 0.5.0 桌面插件与原生能力
 
-本次源码候选新增原生 Agent／Workflow／advisor、图片与结构化输出、独立云端 Review，以及通过隔离 tmux 终端运行的真实交互式 Team。完整工具和原生权限保持可用；计量、运行身份、取消、恢复和远端未决责任分别记录。并发配置存在原生例外，回执明确报告 `resourceBounds.hard=false`。详见[完整能力契约与验证范围](docs/native-capabilities.md)。未填写 `native` 的既有请求保持原有行为。
+尚未发布的 0.5.0 源码候选把原生 Agent／Workflow／Advisor 同时接到了**插件自己的配置页、PTC 工具和独立 machine API**。在插件页打开 Claude Code Pro 配置行，可编辑实时 `native` 默认值；普通调用省略该参数时继承默认值，对象按整体替换，`native:null` 明确全部关闭。插件也未设默认值时，既有调用保持原 CLI 行为。
+
+单独的 `subagent_claude_code_native_job` PTC 工具提供显式 Review／交互 Team、恢复和控制。Review 每次要求 `consent:true`；普通 native 开关不会自动创建独立作业。完整原生工具保持可用，并发配置仍如实报告 `resourceBounds.hard=false`。详见[中文完整契约、PTC 示例与验证范围](docs/native-capabilities.zh.md)（[English](docs/native-capabilities.md)）。
 
 ## 为什么要这个插件
 
@@ -97,7 +99,7 @@ subagent_claude_code({
 | `ephemeral` | `--no-session-persistence`：不写入任何可恢复内容 |
 
 规则：显式 `session_id` 永远续接该 session（续接失败报错，绝不悄悄换）；记忆中的
-session 只在创建它的 cwd 中、且没有其他委派占用时复用；记忆 session 不存在时自动
+session 只在创建它的 cwd 中、有效 native／模型／权限配置一致且没有其他委派占用时复用；记忆 session 不存在时自动
 新建并记录原因；`fork_session: true` 分支出新 session。
 
 ### 多模态输入
@@ -154,6 +156,7 @@ doctor 只打印 token 长度，不打印值。
   name: 'dsh-subagent-claude-code-pro'
   config:
     toolName: subagent_claude_code
+    # tmuxCommand: /absolute/path/to/tmux  # 可选，仅独立 Team 作业
     command: claude                  # 或绝对路径
     presets: [daily, heavy, cordis]
     modelSelection: true
@@ -221,7 +224,10 @@ model/effort/session/permission/timeout、`system/init` 报告的 CLI 版本与�
 ## 开发
 
 ```sh
-npm test                        # 确定性测试，使用 tests/fixtures/fake-claude.mjs
+npm ci                         # 安装开发依赖
+npm test                       # 确定性 CLI/Schema/React/作业测试
+npm run test:host              # published 与固定当前 DSH 源码的真实 schema/PTC 契约
+npm run test:package           # 无 DSH runtime peer 的打包 machine consumer
 node scripts/probe-live.mjs     # 真实 CLI 冒烟，需要已登录的本地 CLI
 ```
 

@@ -26,8 +26,14 @@ jobs:
           node --version
           npm --version
 
+      - name: Install desktop development peers
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Unit tests
         run: npm test
+
+      - name: Verify real DSH schemas and generated PTC tool bindings
+        run: npm run test:host
 
       - name: Verify the packed public machine API
         run: npm run test:package

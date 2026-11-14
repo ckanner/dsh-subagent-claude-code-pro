@@ -30,9 +30,11 @@ provider cannot express:
 > DSH session. See the verification record ([English](docs/live-verification.md) ·
 > [中文](docs/live-verification.zh.md)) and `CHANGELOG.md`.
 
-## Native machine capabilities / 原生能力
+## Native desktop and machine capabilities
 
-The 0.5.0 source candidate adds native Agent/Workflow/advisor controls, media/schema support, independent cloud-review jobs, and actual interactive Team sessions. See [the complete contract and native limits](docs/native-capabilities.md). Existing absent-native requests retain their behavior.
+The unpublished 0.5.0 source candidate exposes native Agent/Workflow/advisor controls from the **plugin's own Configure page and PTC tool**, as well as the independent machine API. The Plugins page saves live `native` defaults; ordinary calls inherit them, a per-call object replaces them, and `native:null` explicitly turns all off. With no plugin default, existing omitted-native calls retain their CLI behavior.
+
+The separate `subagent_claude_code_native_job` PTC tool starts explicit native Review/interactive Team jobs and provides owned recovery/control. Review always requires `consent:true`; enabling ordinary native capabilities starts no independent job. See [desktop settings, PTC examples, exact native limits and validation](docs/native-capabilities.md) ([中文](docs/native-capabilities.zh.md)).
 
 ## Why this exists
 
@@ -111,7 +113,7 @@ conversation deliberately:
 
 Rules: an explicit `session_id` always continues that session (a failed resume
 is reported, never silently replaced); a remembered session is reused only in
-the directory it was created in and only when no other delegation is using it;
+the directory it was created in, with the same effective native/model/permission settings, and only when no other delegation is using it;
 a remembered session that no longer exists is repaired by starting a fresh one,
 with the reason in the diagnostic log. `fork_session: true` branches a continued
 session into a new id.
@@ -183,6 +185,7 @@ configuration explicitly.
   config:
     toolName: subagent_claude_code   # the official name; override to coexist
     command: claude                  # or an absolute path
+    # tmuxCommand: /absolute/path/to/tmux  # optional, independent Team jobs only
     presets: [daily, heavy, cordis]
     modelSelection: true             # expose model / reasoning_effort
     permissionMode: dontAsk          # plan | dontAsk | acceptEdits | auto | bypassPermissions
@@ -262,7 +265,10 @@ appears to do nothing.
 ## Development
 
 ```sh
+npm ci               # development peers and React/DSH contract checks
 npm test             # deterministic; uses tests/fixtures/fake-claude.mjs
+npm run test:host    # actual published + pinned current DSH schema/PTC projection
+npm run test:package # installed /machine consumer without DSH runtime peers
 node scripts/probe-live.mjs   # real CLI smoke test; needs a logged-in local CLI
 ```
 

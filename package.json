@@ -10,7 +10,8 @@
       "types": "./lib/machine.d.ts",
       "import": "./lib/machine.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": "./assets/client.js"
   },
   "files": [
     "lib",
@@ -22,18 +23,27 @@
     "README.zh.md",
     "CHANGELOG.md",
     "LICENSE",
-    "icon.svg"
+    "icon.svg",
+    "assets"
   ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "scripts": {
     "test": "node --test \"tests/*.spec.mjs\"",
     "test:package": "node scripts/verify-machine-package.mjs",
     "probe": "node scripts/probe-live.mjs",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "test:host": "node scripts/verify-dsh-contract.mjs"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -60,5 +70,25 @@
   "publishConfig": {
     "access": "public"
   },
-  "icon": "./icon.svg"
+  "icon": "./icon.svg",
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0",
+    "@deepseek-ai/dsh-home-paths": "^0.2.2-rc.3"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-home-paths": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
+    "react": "18.3.1",
+    "react-test-renderer": "18.3.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-tool-executor-ptc": "0.2.2-rc.3"
+  }
 }

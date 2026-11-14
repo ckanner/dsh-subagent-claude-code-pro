@@ -23,7 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Install desktop development peers
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Test
         run: npm test
+      - name: Verify real DSH schemas and generated PTC tool bindings
+        run: npm run test:host
       - name: Install and exercise the packed public machine lifecycle
         run: npm run test:package
