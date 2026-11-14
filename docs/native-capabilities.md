@@ -102,7 +102,10 @@ completion or contaminate root session identity. A resumed task with a new run I
 is a new ledger entry; a late old-run completion cannot end the new run. Progress
 usage is a high-water snapshot, not an increment. Ambient tasks are excluded.
 Structured native tool results can establish background/remote launches; model
-prose cannot. Workflow task-notification follow-up turns are accepted only with
+prose cannot. When the tool result arrives after a task start or snapshot, its
+call identity is merged into the existing task run, including an already
+completed run; this never revives the task or leaves a queued tool call behind.
+Workflow task-notification follow-up turns are accepted only with
 native provenance; duplicate/unrelated root results still fail.
 
 Root result usage remains the public root report. Child task snapshots and a

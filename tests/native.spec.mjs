@@ -140,6 +140,38 @@ test('queued Agent tool calls do not masquerade as active native workers', () =>
   assert.match(collector.nativeReport().diagnostic, /subagents exceeded/)
 })
 
+test('late tool linkage reconciles existing task runs and completed snapshots', () => {
+  for (const snapshot of [false, true]) for (const terminalFirst of [false, true]) {
+    const collector = createCollector({ native: { version: 1, agents: { enabled: true, maxConcurrent: 1 } } })
+    collector.accept({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+    collector.accept({ type: 'assistant', session_id: 'root', message: { content: [
+      { type: 'tool_use', name: 'Agent', id: 'spawn-1', input: { model: 'child-model' } },
+    ] } })
+    const task = { task_id: 'child', run_id: 'run-child', task_type: 'local_agent' }
+    collector.accept(snapshot ? { type: 'system', subtype: 'background_tasks_changed', session_id: 'root', tasks: [task] }
+      : { type: 'system', subtype: 'task_started', session_id: 'root', ...task })
+    const completed = { type: 'system', subtype: 'task_notification', session_id: 'root', ...task, status: 'completed' }
+    if (terminalFirst) collector.accept(completed)
+    collector.accept({ type: 'user', session_id: 'root',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'spawn-1', content: 'launched' }] },
+      tool_use_result: { status: 'async_launched', taskId: 'child', runId: 'run-child', taskType: 'local_agent' } })
+    if (!terminalFirst) collector.accept(completed)
+    const report = collector.nativeReport()
+    assert.equal(collector.invalid, false)
+    assert.equal(report.children.length, 1, `snapshot=${snapshot} terminalFirst=${terminalFirst}`)
+    assert.equal(report.children[0].id, 'child')
+    assert.equal(report.children[0].state, 'completed')
+    assert.equal(report.children[0].toolUseId, 'spawn-1')
+    assert.equal(report.children[0].model, 'child-model')
+    assert.equal(report.children[0].parentId, 'root')
+    assert.equal(report.completion.confirmed, true)
+    assert.deepEqual(report.completion.pendingIds, [])
+    collector.accept({ type: 'assistant', session_id: 'child', parent_tool_use_id: 'spawn-1',
+      message: { model: 'resolved-child-model', content: [] } })
+    assert.equal(collector.nativeReport().children[0].model, 'resolved-child-model')
+  }
+})
+
 test('native Workflow completion can trigger a correlated follow-up result without counting snapshots twice', () => {
   const collector = createCollector({ native: { version: 1, agents: { enabled: true }, workflows: { enabled: true } } })
   collector.accept({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent', 'Workflow'], agents: [] })
