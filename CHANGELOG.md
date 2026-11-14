@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 (source candidate)
+
+- Add optional native Agent/Workflow/advisor controls and explicit process-scoped off controls while preserving protocol 1 and existing account behavior.
+- Track native child/task/run identities, models and deduplicated usage metadata without confusing child results with root completion.
+- Keep opaque resumed-run identities stable under late and replayed events; cancel observed concurrency overruns and report native limit exceptions without claiming a hard process bound.
+- Add machine media, structured output validation and native budget forwarding.
+- Add dedicated ultrareview launch/wait/JSON/recovery with explicit consent and truthful unknown remote cleanup after cancellation.
+- Add actual interactive Team jobs through isolated tmux sessions, including attach/capture/send/resize/cancel and supervisor-owned cleanup.
+- Keep child completion, local cleanup, cloud responsibility and structured task approval as distinct facts. See [native capabilities](docs/native-capabilities.md) for exact contracts and validation limits.
+
 ## 0.4.0 (2026-11-12)
 
 - Add lifecycle v1 with awaited pre-prompt dispatch-intent and dispatch-possible

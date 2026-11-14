@@ -44,9 +44,21 @@ if (logPath !== undefined) {
     CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN,
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
     DSH_PRIVATE: process.env.DSH_PRIVATE,
+    CLAUDE_CODE_DISABLE_WORKFLOWS: process.env.CLAUDE_CODE_DISABLE_WORKFLOWS,
+    CLAUDE_CODE_DISABLE_ADVISOR_TOOL: process.env.CLAUDE_CODE_DISABLE_ADVISOR_TOOL,
+    CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: process.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS,
+    CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: process.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH,
+    CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS: process.env.CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS,
+    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS,
   } })}\n`)
 }
 
+if (args[0] === 'ultrareview') {
+  if (mode === 'review-hang') await sleep(60000)
+  if (mode === 'review-bad') { process.stdout.write('{bad'); process.exit(1) }
+  process.stdout.write(JSON.stringify({ bugs: [{ title: 'fixture finding', severity: 'low' }] }, null, 2))
+  process.exit(0)
+}
 const resumedId = flag('--resume')
 const newId = flag('--session-id')
 const sessionId = newId ?? resumedId ?? randomUUID()
@@ -63,6 +75,8 @@ const init = () => emit({
   permissionMode: mode === 'wrong-permission' ? 'dontAsk' : flag('--permission-mode'),
   apiKeySource: 'ANTHROPIC_API_KEY',
   capabilities: ['fake'],
+  tools: mode === 'native-mismatch' ? ['Agent', 'Workflow'] : ['Read', 'Bash', ...((flag('--disallowedTools') ?? '').split(',').includes('Agent') ? [] : ['Agent']), ...(process.env.CLAUDE_CODE_DISABLE_WORKFLOWS === '0' ? ['Workflow'] : [])],
+  agents: flag('--agents') ? Object.keys(JSON.parse(flag('--agents'))) : [],
 })
 
 const result = (fields) => {
@@ -93,7 +107,7 @@ if (mode.startsWith('descendant-')) {
   await sleep(50)
 }
 
-if (mode === 'hang' || mode === 'ignore-term' || mode === 'descendant-timeout') {
+if (mode === 'hang' || mode === 'ignore-term' || mode === 'descendant-timeout' || mode === 'team-hang') {
   init()
   await sleep(60_000)
   process.exit(0)
@@ -173,6 +187,19 @@ if (has('--json-schema')) {
 }
 if (mode !== 'no-init') init()
 if (mode === 'duplicate-init') init()
+if (mode.startsWith('native-child')) {
+  emit({ type: 'assistant', session_id: sessionId, parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'spawn-1', name: 'Agent', input: { model: 'child-model' } }] } })
+  emit({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'child-1', run_id: 'run-001', tool_use_id: 'spawn-1', task_type: 'local_agent' })
+  emit({ type: 'assistant', parent_tool_use_id: 'spawn-1', session_id: 'native-child-session', message: { model: 'actual-child', content: [{ type: 'text', text: 'child-only text' }] } })
+  for (const n of [20, 25, 25]) emit({ type: 'system', subtype: 'task_progress', session_id: sessionId, task_id: 'child-1', run_id: 'run-001', usage: { total_tokens: n, tool_uses: 2, duration_ms: 50 } })
+  emit({ type: 'result', parent_tool_use_id: 'spawn-1', session_id: 'native-child-session', subtype: 'success', is_error: false, result: 'CHILD IS NOT ROOT' })
+  if (mode === 'native-child-hang') await sleep(60000)
+  emit({ type: 'system', subtype: 'task_notification', session_id: sessionId, task_id: 'child-1', run_id: 'run-001', status: 'completed', usage: { total_tokens: 25, tool_uses: 2, duration_ms: 50 } })
+}
+if (mode === 'native-remote') {
+  emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'tool_use', id: 'workflow-1', name: 'Workflow', input: {} }] } })
+  emit({ type: 'user', session_id: sessionId, message: { content: [{ type: 'tool_result', tool_use_id: 'workflow-1', content: 'remote started' }] }, tool_use_result: { status: 'remote_launched', taskId: 'remote-1', sessionUrl: 'https://claude.ai/code/fixture' } })
+}
 emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: answer }] } })
 if (mode === 'progress-hang') await sleep(60_000)
 result({

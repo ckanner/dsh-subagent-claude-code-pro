@@ -269,3 +269,7 @@ network access.
 ## License
 
 MIT.
+
+## Native machine capabilities / 原生能力
+
+The 0.5.0 source candidate adds native Agent/Workflow/advisor controls, media/schema support, independent cloud-review jobs, and actual interactive Team sessions. See [the complete contract and native limits](docs/native-capabilities.md). Existing absent-native requests retain their behavior.
