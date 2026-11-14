@@ -63,7 +63,8 @@ async function execute(tool, args) {
 
 test('registers the official tool name with the pro schema', () => {
   const { tools } = setup()
-  assert.equal(tools.length, 1)
+  assert.equal(tools.length, 2)
+  assert.equal(tools[1].name, 'subagent_claude_code_native_job')
   const tool = tools[0]
   assert.equal(tool.name, 'subagent_claude_code')
   assert.ok(tool.parameters.properties.prompt)

@@ -26,6 +26,9 @@ jobs:
           node --version
           npm --version
 
+      - name: Install desktop development peers
+        run: npm install --ignore-scripts --no-audit --no-fund
+
       - name: Unit tests
         run: npm test
 

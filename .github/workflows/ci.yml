@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Install desktop development peers
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Test
         run: npm test
       - name: Install and exercise the packed public machine lifecycle

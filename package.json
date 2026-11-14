@@ -10,7 +10,8 @@
       "types": "./lib/machine.d.ts",
       "import": "./lib/machine.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": "./assets/client.js"
   },
   "files": [
     "lib",
@@ -22,11 +23,19 @@
     "README.zh.md",
     "CHANGELOG.md",
     "LICENSE",
-    "icon.svg"
+    "icon.svg",
+    "assets"
   ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "scripts": {
@@ -60,5 +69,21 @@
   "publishConfig": {
     "access": "public"
   },
-  "icon": "./icon.svg"
+  "icon": "./icon.svg",
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0",
+    "@deepseek-ai/dsh-home-paths": "^0.2.2-rc.3"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-home-paths": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3"
+  }
 }
