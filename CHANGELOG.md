@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (unreleased)
+
+### Fixed
+
+- Accept and forward `native.agents.definitions[name].effort` through the desktop/PTC and public machine paths as native `--agents` JSON, with the public `Effort` type covering `low`, `medium`, `high`, `xhigh` and `max`.
+- Apply the existing `modelSelection:false` protection to configured child effort values as well as models, while retaining explicit all-off behavior.
+- Document separate child model/effort examples, omitted-field CLI behavior and environment/organization precedence without claiming effective child effort attestation.
+
 ## 0.5.0 (source candidate)
 
 - Add the plugin's live native Config field and an actual Plugins-row browser configuration page with whole-value set/reset, revision fencing and retained drafts after conflicts.

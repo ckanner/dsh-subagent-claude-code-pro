@@ -32,7 +32,9 @@ provider cannot express:
 
 ## Native desktop and machine capabilities
 
-The unpublished 0.5.0 source candidate exposes native Agent/Workflow/advisor controls from the **plugin's own Configure page and PTC tool**, as well as the independent machine API. The Plugins page saves live `native` defaults; ordinary calls inherit them, a per-call object replaces them, and `native:null` explicitly turns all off. With no plugin default, existing omitted-native calls retain their CLI behavior.
+The plugin exposes native Agent/Workflow/advisor controls from its **own Configure page and PTC tool**, as well as the independent machine API. The Plugins page saves live `native` defaults; ordinary calls inherit them, a per-call object replaces them, and `native:null` explicitly turns all off. With no plugin default, existing omitted-native calls retain their CLI behavior.
+
+From plugin 0.5.1, native Agent definitions can request a separate `model` and `effort` for each child; see [child effort and CLI precedence](docs/native-capabilities.md#per-agent-effort).
 
 The separate `subagent_claude_code_native_job` PTC tool starts explicit native Review/interactive Team jobs and provides owned recovery/control. Review always requires `consent:true`; enabling ordinary native capabilities starts no independent job. See [desktop settings, PTC examples, exact native limits and validation](docs/native-capabilities.md) ([中文](docs/native-capabilities.zh.md)).
 

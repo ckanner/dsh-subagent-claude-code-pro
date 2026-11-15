@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
     const copy = zh ? {
       title: 'Claude 原生能力默认值', summary: 'Agent、Workflow 和 Advisor 的原生配置',
       detail: '每次委派读取最新默认值。单次 native 对象完整替换默认值；null 明确关闭全部能力。并发与深度是 CLI 控制，无法保证硬上限。独立 Review / Team 必须另行显式启动。',
-      help: 'JSON 配置支持 agents.enabled / maxConcurrent / maxDepth / definitions、workflows.enabled / maxConcurrent、advisor.enabled / model。未出现的能力关闭；关闭项只能保留 enabled:false。',
+      help: 'JSON 配置支持 agents.enabled / maxConcurrent / maxDepth / definitions、workflows.enabled / maxConcurrent、advisor.enabled / model。每个 Agent 定义可独立设置 effort：low、medium、high、xhigh、max；省略时沿用 Claude CLI 规则。未出现的能力关闭；关闭项只能保留 enabled:false。',
       save: '保存默认值', reset: '恢复配置文件默认值', off: '编辑为全部关闭', example: '载入示例', discard: '放弃草稿',
       empty: '未设置：沿用 Claude CLI 默认值', unavailable: '当前插件配置不可写或尚未载入。',
       invalid: '配置无效：', conflict: '保存未成功，可能有更新冲突。草稿已保留；放弃草稿后重新读取，或复制草稿与最新值比较。',
@@ -17,14 +17,14 @@ window.__ModuleLoader__.load({
     } : {
       title: 'Claude native defaults', summary: 'Native Agent, Workflow and Advisor configuration',
       detail: 'Every delegation reads the latest defaults. A per-call native object replaces them completely; null turns all capabilities off. Concurrency and depth are CLI controls, not guaranteed hard limits. Independent Review / Team jobs require a separate explicit action.',
-      help: 'JSON supports agents.enabled / maxConcurrent / maxDepth / definitions, workflows.enabled / maxConcurrent, and advisor.enabled / model. Omitted capabilities are off; a disabled section may contain only enabled:false.',
+      help: 'JSON supports agents.enabled / maxConcurrent / maxDepth / definitions, workflows.enabled / maxConcurrent, and advisor.enabled / model. Each Agent definition may set effort to low, medium, high, xhigh, or max; omission follows Claude CLI rules. Omitted capabilities are off; a disabled section may contain only enabled:false.',
       save: 'Save defaults', reset: 'Reset user override', off: 'Edit to all off', example: 'Load example', discard: 'Discard draft',
       empty: 'Unset: use Claude CLI defaults', unavailable: 'This plugin configuration is unavailable or read-only.',
       invalid: 'Invalid configuration: ', conflict: 'The write was not accepted, possibly because another editor changed the revision. Your draft is preserved. Discard to reload, or copy it and compare with the latest value.',
       saved: 'Saved. Future delegations use the new defaults; running jobs retain their starting snapshot.',
     }
     const example = { version: 1, agents: { enabled: true, maxConcurrent: 4, maxDepth: 2,
-      definitions: { implementer: { description: 'Complete implementation', prompt: 'Implement the requested task fully and verify the result using the approved tools.' } } },
+      definitions: { implementer: { description: 'Complete implementation', prompt: 'Implement the requested task fully and verify the result using the approved tools.', effort: 'high' } } },
       workflows: { enabled: true, maxConcurrent: 2 }, advisor: { enabled: false } }
     const serialize = value => value === undefined ? '' : JSON.stringify(value, null, 2)
     function validate(value) {
@@ -51,10 +51,11 @@ window.__ModuleLoader__.load({
           if (!v.definitions || typeof v.definitions !== 'object' || Array.isArray(v.definitions) || Object.keys(v.definitions).length > 128) throw new Error('definitions must be an object of at most 128 agents')
           for (const [name,d] of Object.entries(v.definitions)) {
             if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(name)) throw new Error('invalid agent definition name: ' + name)
-            object(d, ['description','prompt','tools','disallowedTools','model','permissionMode','maxTurns'], 'definition ' + name)
+            object(d, ['description','prompt','tools','disallowedTools','model','effort','permissionMode','maxTurns'], 'definition ' + name)
             for (const field of ['description','prompt']) if (typeof d[field] !== 'string' || !d[field].trim()) throw new Error(name + '.' + field + ' is required')
             for (const field of ['tools','disallowedTools']) if (d[field] !== undefined && (!Array.isArray(d[field]) || d[field].some(t => typeof t !== 'string' || !t.trim()))) throw new Error(name + '.' + field + ' must contain tool names')
             if (d.model !== undefined && (typeof d.model !== 'string' || !d.model.trim())) throw new Error(name + '.model must be text')
+            if (d.effort !== undefined && !['low','medium','high','xhigh','max'].includes(d.effort)) throw new Error(name + '.effort must be low, medium, high, xhigh, or max')
             if (d.permissionMode !== undefined && !['plan','dontAsk','acceptEdits','auto','bypassPermissions'].includes(d.permissionMode)) throw new Error(name + '.permissionMode is invalid')
             positive(d.maxTurns, name + '.maxTurns')
           }

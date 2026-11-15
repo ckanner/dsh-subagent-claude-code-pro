@@ -45,6 +45,7 @@ test('visible DSH row settings use atomic native writes, explicit off and revisi
   assert.equal(example.agents.enabled,true)
   assert.equal(example.agents.definitions.implementer.tools,undefined)
   assert.equal(example.agents.definitions.implementer.permissionMode,undefined)
+  assert.equal(example.agents.definitions.implementer.effort,'high')
   await act(async()=>button(view.root,'Edit to all off').props.onClick())
   form={...form,mutate:async(ops,revision)=>{writes.push({ops:JSON.parse(JSON.stringify(ops)),revision});return true}}
   await act(async()=>view.update(React.createElement(module.component,{view:'page',form})))
@@ -52,6 +53,29 @@ test('visible DSH row settings use atomic native writes, explicit off and revisi
   assert.deepEqual(writes.at(-1),{ops:[{op:'set',path:['native'],value:null}],revision:4})
   await act(async()=>button(view.root,'Reset user override').props.onClick())
   assert.deepEqual(writes.at(-1),{ops:[{op:'unset',path:['native']}],revision:4})
+})
+
+test('settings preserve child effort and reject invalid levels before writing',async t=>{
+  const module=load(),writes=[]
+  const form={state:{status:'ready',writable:true,revision:1,value:{}},mutate:async ops=>{writes.push(JSON.parse(JSON.stringify(ops)));return true}}
+  let view
+  await act(async()=>{view=create(React.createElement(module.component,{view:'page',form}))})
+  t.after(()=>{act(()=>view.unmount());module.dispose()})
+  for(const effort of ['low','medium','high','xhigh','max',undefined]) {
+    const definition={description:'Review',prompt:'Check the result.',model:'opus',...(effort===undefined?{}:{effort})}
+    const native={version:1,agents:{enabled:true,definitions:{reviewer:definition}}}
+    await act(async()=>view.root.findByType('textarea').props.onChange({target:{value:JSON.stringify(native)}}))
+    await act(async()=>button(view.root,'Save defaults').props.onClick())
+    assert.deepEqual(writes.at(-1),[{op:'set',path:['native'],value:native}])
+  }
+  const accepted=writes.length
+  for(const effort of [null,1,true,{},[],'','ultra','HIGH',' high ']) {
+    const native={version:1,agents:{enabled:true,definitions:{reviewer:{description:'Review',prompt:'Check.',effort}}}}
+    await act(async()=>view.root.findByType('textarea').props.onChange({target:{value:JSON.stringify(native)}}))
+    await act(async()=>button(view.root,'Save defaults').props.onClick())
+    assert.equal(writes.length,accepted)
+    assert.match(JSON.stringify(view.toJSON()),/reviewer\.effort must be/)
+  }
 })
 
 test('settings refuse invalid definitions locally and honor host read-only state',async t=>{

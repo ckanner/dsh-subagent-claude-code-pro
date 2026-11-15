@@ -24,9 +24,11 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 > CLI 与真实 DSH 会话跑通。证据见
 > [docs/live-verification.zh.md](docs/live-verification.zh.md) 与 `CHANGELOG.md`。
 
-## 0.5.0 桌面插件与原生能力
+## 桌面插件与原生能力
 
-尚未发布的 0.5.0 源码候选把原生 Agent／Workflow／Advisor 同时接到了**插件自己的配置页、PTC 工具和独立 machine API**。在插件页打开 Claude Code Pro 配置行，可编辑实时 `native` 默认值；普通调用省略该参数时继承默认值，对象按整体替换，`native:null` 明确全部关闭。插件也未设默认值时，既有调用保持原 CLI 行为。
+插件把原生 Agent／Workflow／Advisor 同时接到了**自己的配置页、PTC 工具和独立 machine API**。在插件页打开 Claude Code Pro 配置行，可编辑实时 `native` 默认值；普通调用省略该参数时继承默认值，对象按整体替换，`native:null` 明确全部关闭。插件也未设默认值时，既有调用保持原 CLI 行为。
+
+从插件 0.5.1 起，原生 Agent 定义可为每个子级分别请求 `model` 和 `effort`；详见[子 Agent 推理等级与 CLI 优先级](docs/native-capabilities.zh.md#子-agent-推理等级)。
 
 单独的 `subagent_claude_code_native_job` PTC 工具提供显式 Review／交互 Team、恢复和控制。Review 每次要求 `consent:true`；普通 native 开关不会自动创建独立作业。完整原生工具保持可用，并发配置仍如实报告 `resourceBounds.hard=false`。详见[中文完整契约、PTC 示例与验证范围](docs/native-capabilities.zh.md)（[English](docs/native-capabilities.md)）。
 

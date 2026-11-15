@@ -1,4 +1,4 @@
-# 原生能力（0.5.0 源码候选）
+# 原生能力
 
 [English](native-capabilities.md) | 中文
 
@@ -45,7 +45,13 @@ native:
         description: 完整实现并验证一个模块
         prompt: 使用已批准的原生工具完成整个任务并验证结果。
         model: sonnet
+        effort: medium
         maxTurns: 20
+      debugger:
+        description: 解决复杂故障
+        prompt: 查明原因、实现修复并验证结果。
+        model: opus
+        effort: high
   workflows:
     enabled: true
     maxConcurrent: 4
@@ -60,9 +66,27 @@ description 和 prompt；最多 128 个定义，名称为字母/数字开头的 
 未知字段、错误类型、关闭项残留控制、缺少 Advisor 模型等会在设置保存或调用前失败。
 
 子级的 permissionMode 不能扩大当前根权限。`modelSelection:false` 不会禁用
-profile 已配置的子模型和 Advisor 默认模型；单次调用不能新增或修改模型，也不能在
-保持 Agent 能力启用时省略已固定的子模型定义。需要完整保留受保护的模型，或明确
-关闭该能力。这里不会隐式深度合并旧 definitions，null/关闭仍可用。
+profile 已配置的子模型、子 effort 和 Advisor 默认模型；单次调用不能新增或修改
+子模型或 effort，也不能在保持 Agent 能力启用时省略已固定的值。Advisor 模型也受
+保护。需要完整保留受保护的定义值，或明确关闭该能力。这里不会隐式深度合并旧
+definitions，null/关闭仍可用。
+
+### 子 Agent 推理等级
+
+子 Agent 推理等级配置需要插件 0.5.1 或以上版本。
+
+`native.agents.definitions[name].effort` 接受 `low`、`medium`、`high`、`xhigh`、
+`max`，与根 PTC 参数 `reasoning_effort` 或 machine 请求的 `effort` 分开设置。
+插件校验枚举后原样放入原生 `--agents` JSON；省略时不添加子级覆盖。
+
+实际等级遵循 [Claude Code 子 Agent 规则](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)：
+没有子级覆盖时，使用主会话同一模型的子 Agent 沿用会话 effort；使用其他模型的
+子 Agent 不能假定继承该等级。`CLAUDE_CODE_EFFORT_LEVEL` 优先于定义里的 effort。
+可用等级取决于模型，组织的模型策略也会影响选择。示例明确请求不同子模型和等级，
+不改变插件的模型、effort 或权限默认值。
+
+回执保留请求配置与 `tools-only` 初始化检查结果，不独立认证每个子 Agent 实际生效的
+模型专属推理等级。
 
 在 run_code 中：
 
@@ -89,7 +113,7 @@ inspect(another.native);
 
 | 控制 | CLI 接口 |
 | --- | --- |
-| Agent definitions | --agents JSON |
+| Agent definitions（包括逐个 model / effort） | --agents JSON |
 | Advisor | --advisor model，关闭时 CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1 |
 | Agent 并发 / 深度 | CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS / CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH |
 | Workflow 并发 | CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS |
@@ -101,7 +125,7 @@ inspect(another.native);
 
 init 的 tools 和 agents 会用于校验请求的工具面；不匹配会失败。
 `native.effective.verification:'tools-only'` 明确说明这是工具面验证，并未反射核实
-并发/深度、Advisor 实际激活/模型、根与子权限优先级。Claude print 没有可证明的
+并发/深度、Advisor 实际激活/模型、子 Agent effort、根与子权限优先级。Claude print 没有可证明的
 prompt 发送前配置握手，不能把收到 init 当成派发前 ACK。权限模式是工具审批政策，
 不是操作系统沙箱；根 bypassPermissions 在 Claude 自身规则下可能优先于子级 plan。
 

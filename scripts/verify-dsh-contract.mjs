@@ -7,6 +7,7 @@ import { jsonSchemaToTs as publishedTypes, renderToolsSdk as publishedSdk } from
 import { createClaudeCodeTool } from '../lib/tool.js'
 import { createNativeJobTool } from '../lib/desktop-native-jobs.js'
 import { resolveConfig } from '../lib/index.js'
+import { parseNativeRequest } from '../lib/native.js'
 
 const reference = '39163dd30f703a79079e2d2446545cff3c453738'
 const entries = [
@@ -43,6 +44,13 @@ for (const modelSelection of [false, true]) for (const backgroundEnabled of [fal
   const native = createNativeJobTool({ agent:{id:'schema-check'}, config, cwd:process.cwd(),
     jobs:backgroundEnabled?{start(){throw new Error('contract validation must not dispatch')}}:undefined })
   for (const definition of [normal,native]) {
+    const nativeSchema=definition.parameters.properties.native.oneOf.find(schema=>schema.type==='object')
+    const definitions=nativeSchema.properties.agents.properties.definitions
+    assert.match(definitions.description,/effort \(low, medium, high, xhigh, or max\)/)
+    for(const example of definitions.examples) {
+      const parsed=parseNativeRequest({version:1,agents:{enabled:true,definitions:example}})
+      assert.equal(parsed.agents.definitions.implementer.effort,'medium')
+    }
     for (const validate of [publishedAssert,current.assertSupportedJsonSchema]) {
       validate(definition.parameters)
       validate(definition.output.schema)
