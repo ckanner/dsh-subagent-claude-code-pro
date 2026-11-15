@@ -151,7 +151,10 @@ export interface NativeRequest {
   version: 1
   agents?: { enabled: boolean; maxConcurrent?: number; maxDepth?: number;
     definitions?: Record<string, { description: string; prompt: string; tools?: string[]; disallowedTools?: string[];
-      model?: string; permissionMode?: PermissionMode | 'default'; maxTurns?: number }> }
+      model?: string;
+      /** Forwarded in --agents; omission follows the CLI's model-specific effort rules. */
+      effort?: Effort;
+      permissionMode?: PermissionMode | 'default'; maxTurns?: number }> }
   workflows?: { enabled: boolean; maxConcurrent?: number }
   advisor?: { enabled: boolean; model?: string }
 }

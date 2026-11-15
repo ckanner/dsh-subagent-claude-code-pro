@@ -9,7 +9,7 @@ import { makeAgent, makeContext, makeFakeCommand, makeTempDir } from './helpers.
 
 process.env.DSH_HOME = makeTempDir('ccpro-native-desktop-home-')
 const on = { version:1, agents:{enabled:true,maxConcurrent:3,maxDepth:2,definitions:{
-  implementer:{description:'Complete implementation',prompt:'Implement fully.',model:'sonnet',permissionMode:'dontAsk',maxTurns:8},
+  implementer:{description:'Complete implementation',prompt:'Implement fully.',model:'sonnet',effort:'high',permissionMode:'dontAsk',maxTurns:8},
 }}, workflows:{enabled:true,maxConcurrent:2}, advisor:{enabled:true,model:'opus'} }
 const call = (tool, args = {}, signal = new AbortController().signal) => tool.execute({description:'native fixture',prompt:'complete task',...args},{signal})
 const logs = path => { try { return readFileSync(path,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) } catch { return [] } }
@@ -38,6 +38,11 @@ test('real runtime Config exposes one live native field and strict serialized va
   const serial=JSON.parse(JSON.stringify(Config))
   const rehydrated=new Schema(serial)
   assert.deepEqual(resolveConfig(rehydrated({native:on})).native,on)
+  for(const effort of ['low','medium','high','xhigh','max']) {
+    const native=structuredClone(on)
+    native.agents.definitions.implementer.effort=effort
+    assert.deepEqual(resolveConfig(rehydrated({native})).native,native)
+  }
   for(const native of [
     {version:1,unknown:true}, {version:1,agents:{enabled:false,maxConcurrent:2}},
     {version:1,agents:{enabled:true,definitions:{'bad name':{description:'x',prompt:'x'}}}},
@@ -45,6 +50,7 @@ test('real runtime Config exposes one live native field and strict serialized va
     {version:1,agents:{enabled:true,definitions:{x:{description:'x',prompt:'a\0b'}}}},
     {version:1,agents:{enabled:true,definitions:{x:{description:'x',prompt:'x'.repeat(65537)}}}},
     {version:1,agents:{enabled:true,definitions:{x:{description:'x',prompt:'x',tools:Array(257).fill('Read')}}}},
+    ...[null,1,true,{},[],'','ultra','HIGH',' high '].map(effort=>({version:1,agents:{enabled:true,definitions:{x:{description:'x',prompt:'x',effort}}}})),
     {version:1,agents:{enabled:true,maxConcurrent:Number.MAX_SAFE_INTEGER+1}},
     {version:1,advisor:{enabled:true}}, {version:1,workflows:{enabled:true,maxConcurrent:257}},
   ]) {
@@ -122,9 +128,31 @@ test('root permissions and modelSelection constrain explicit native replacements
   await assert.rejects(call(f.tool,{native:{...on,agents:{enabled:true}}}),/retain configured models/)
   await assert.rejects(call(f.tool,{native:{...on,advisor:{enabled:true,model:'haiku'}}}),/modelSelection/)
   await assert.rejects(call(f.tool,{native:{...on,agents:{enabled:true,definitions:{implementer:{...on.agents.definitions.implementer,model:'haiku'}}}}}),/modelSelection/)
+  await assert.rejects(call(f.tool,{native:{...on,agents:{enabled:true,definitions:{implementer:{...on.agents.definitions.implementer,effort:'low'}}}}}),/modelSelection/)
+  const withoutEffort=structuredClone(on)
+  delete withoutEffort.agents.definitions.implementer.effort
+  await assert.rejects(call(f.tool,{native:withoutEffort}),/retain configured effort/)
+  await assert.rejects(call(f.tool,{native:{version:1,agents:{enabled:true,definitions:{newAgent:{description:'x',prompt:'x',effort:'max'}}}}}),/modelSelection/)
+  await call(f.tool,{native:structuredClone(on)})
   await assert.rejects(call(f.tool,{model:'haiku'}),/disabled/)
   await assert.rejects(call(f.tool,{native:{version:1,agents:{enabled:true,definitions:{escape:{description:'x',prompt:'x',permissionMode:'bypassPermissions'}}}}}),/exceeds/)
   assert.deepEqual(resolveDesktopNative(on,{version:1,agents:{enabled:false}},'dontAsk',false),{version:1,agents:{enabled:false}})
+})
+
+test('changing only a child effort isolates the next desktop session',async t=>{
+  const f=setup(t,{native:on})
+  await call(f.tool)
+  const first=flag(logs(f.log)[0],'--session-id')
+  const changed=structuredClone(on)
+  changed.agents.definitions.implementer.effort='xhigh'
+  f.setNative(changed)
+  const result=await call(f.tool)
+  const next=logs(f.log)[1]
+  assert.equal(flag(next,'--resume'),undefined)
+  assert.notEqual(flag(next,'--session-id'),first)
+  assert.equal(JSON.parse(flag(next,'--agents')).implementer.effort,'xhigh')
+  assert.equal(result.native.requested.agents.definitions.implementer.effort,'xhigh')
+  await assert.rejects(call(f.tool,{session_id:first}),/different native/)
 })
 
 test('auto sessions separate snapshots; known mismatched resume fails and unknown external resume carries controls',async t=>{

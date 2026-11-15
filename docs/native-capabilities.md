@@ -1,4 +1,4 @@
-# Native capabilities (0.5.0 source candidate)
+# Native capabilities
 
 The public `dsh-subagent-claude-code-pro/machine` entry now exposes native Agent,
 Workflow, advisor, media and structured-output controls, plus independent native
@@ -16,7 +16,7 @@ plan permission mode under Claude's own rules.
 
 ## Desktop settings and PTC tools
 
-The 0.5.0 candidate also exposes these capabilities from the DSH plugin itself.
+The plugin also exposes these capabilities from its own DSH configuration and tools.
 Open **Plugins → dsh-subagent-claude-code-pro → Claude Code Pro row → Configure**.
 The native JSON editor saves through DSH's revision-checked settings form. A failed
 write keeps the draft. **Reset user override** removes the saved native field and
@@ -59,7 +59,13 @@ native:
         description: Complete and verify one module
         prompt: Implement the full task with the approved native tools.
         model: sonnet
+        effort: medium
         maxTurns: 20
+      debugger:
+        description: Resolve a difficult failure
+        prompt: Identify the cause, implement a fix, and verify it.
+        model: opus
+        effort: high
   workflows:
     enabled: true
     maxConcurrent: 4
@@ -71,10 +77,31 @@ native:
 Definitions may also specify `tools`, `disallowedTools` and
 `permissionMode`. Omitting a tool list preserves the native approved tool
 surface. A definition cannot select permissions broader than the current root
-mode. With `modelSelection:false`, configured native model defaults still
-work, but a call cannot add/change a model or remove a configured child model
-while keeping agents enabled. It must retain the complete protected definition
-models or explicitly turn that capability off; no hidden deep merge occurs.
+mode. With `modelSelection:false`, configured child model/effort and Advisor
+model defaults still work. A call cannot add/change a child model or effort, or
+remove a configured value while keeping agents enabled; Advisor model selection
+is protected too. It must retain the complete protected definition values or
+explicitly turn that capability off; no hidden deep merge occurs.
+
+### Per-agent effort
+
+Per-agent effort requires plugin 0.5.1 or later.
+
+Each `native.agents.definitions[name].effort` accepts `low`, `medium`, `high`,
+`xhigh` or `max`, independently of the root PTC `reasoning_effort` or machine
+request's `effort`. The plugin validates the value and forwards it unchanged in
+the native `--agents` JSON. Omitting it adds no child effort override.
+
+Claude Code applies its [subagent effort rules](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level):
+without a child override, a child on the main conversation's model follows the
+session effort; a child on another model must not be assumed to inherit that
+level. `CLAUDE_CODE_EFFORT_LEVEL` takes precedence over a definition's effort.
+Available levels depend on the model, and organization model policies still
+govern the selection. The examples request different child models and levels;
+they do not change the plugin's model, effort or permission defaults.
+
+The receipt records the requested configuration and `tools-only` init checks.
+It does not independently verify each child's effective model-specific effort.
 
 The DSH outer transport remains PTC. Inside `run_code`, call the registered
 tool through the generated TypeScript SDK:
@@ -205,7 +232,8 @@ const receipt = await runMachine({
     agents: {
       enabled: true, maxConcurrent: 4, maxDepth: 2,
       definitions: {
-        implementer: { description: 'Implement one module', prompt: 'Complete and validate the assigned module.', model: 'sonnet' },
+        implementer: { description: 'Implement one module', prompt: 'Complete and validate the assigned module.', model: 'sonnet', effort: 'medium' },
+        debugger: { description: 'Resolve a difficult failure', prompt: 'Identify the cause, implement a fix, and verify it.', model: 'opus', effort: 'high' },
       },
     },
     workflows: { enabled: true, maxConcurrent: 8 },
@@ -221,9 +249,10 @@ const receipt = await runMachine({
 ```
 
 `agents.definitions` uses native `--agents` definitions: description, prompt,
-tools, disallowedTools, model, permissionMode and maxTurns. Installed project/user
+tools, disallowedTools, model, effort, permissionMode and maxTurns. Installed project/user
 agent definitions remain available. Root model and effort retain their existing
-per-invocation controls. Advisor activation additionally requires an explicit
+per-invocation controls; [child effort](#per-agent-effort) is a separate optional
+field. Advisor activation additionally requires an explicit
 model (`{enabled:true, model:'opus'}`); native account/model eligibility and any
 existing usage-credit consent still apply. The package never accepts that consent
 on the user's behalf.
@@ -247,7 +276,7 @@ bound on unrelated/cloud work. Timeouts and measured usage remain separate.
 Mismatches stop the run and remain failures. Print mode has no verified pre-prompt
 configuration handshake, so dispatch may already be possible when init arrives.
 `native.effective.verification` is `tools-only`: concurrency/depth limits, actual
-advisor activation/model and child permission precedence are explicitly listed as
+advisor activation/model, child effort and child permission precedence remain
 unverified. Passing an environment variable is not claimed as runtime introspection.
 
 `native.resourceBounds.hard` is consequently `false`. The declared concurrency

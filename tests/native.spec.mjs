@@ -48,6 +48,45 @@ test('native controls are explicit, bounded and process-scoped', () => {
   assert.throws(() => validateInteractiveTeamRequest({ protocol: 1, requestId: 'team', cwd: f.cwd, prompt: 'team', permissionMode: 'acceptEdits', native: { version: 1 } }))
 })
 
+test('native agent effort rejects unsupported values for machine queries and interactive teams', () => {
+  const f = fixture()
+  for (const effort of [null, 0, 1, true, false, {}, [], '', ' ', 'auto', 'none', 'minimal', 'ultra', 'High', ' high', 'high ', 'high' + String.fromCharCode(0)]) {
+    const native = { version: 1, agents: { enabled: true, definitions: {
+      worker: { description: 'Implement', prompt: 'Complete the assigned task', effort },
+    } } }
+    assert.throws(() => parseMachineRequest({ ...f.request, native }), /invalid agent effort/, JSON.stringify(effort))
+    assert.throws(() => validateInteractiveTeamRequest({ protocol: 1, requestId: 'team', cwd: f.cwd,
+      prompt: 'Work as a team', permissionMode: 'acceptEdits', native }), /invalid agent effort/, JSON.stringify(effort))
+  }
+})
+
+test('machine forwards every native agent effort without changing root effort or omitted defaults', async () => {
+  const definitions = Object.fromEntries(['low', 'medium', 'high', 'xhigh', 'max'].map(effort => [effort, {
+    description: 'Implement', prompt: 'Complete the assigned task', model: 'sonnet', effort,
+  }]))
+  definitions.inherited = { description: 'Use native defaults', prompt: 'Complete the assigned task', model: 'sonnet' }
+  const native = { version: 1, agents: { enabled: true, definitions } }
+  for (const effort of ['medium', undefined]) {
+    const f = fixture()
+    const receipt = await runMachine({ ...f.request, model: 'opus', effort, native }, f.runtime)
+    assert.equal(receipt.ok, true, JSON.stringify(receipt))
+    assert.equal(receipt.requested.effort, effort ?? null)
+    assert.equal(receipt.configuration.observed.effort, undefined)
+    assert.deepEqual(receipt.native.requested, native)
+    assert.equal(receipt.native.effective.verification, 'tools-only')
+    assert.ok(receipt.native.effective.config.unverified.includes('child effort'))
+    const call = JSON.parse(readFileSync(f.log, 'utf8').trim())
+    assert.equal(call.args[call.args.indexOf('--model') + 1], 'opus')
+    const rootEffort = call.args.indexOf('--effort')
+    if (effort === undefined) assert.equal(rootEffort, -1)
+    else assert.equal(call.args[rootEffort + 1], effort)
+    const forwarded = JSON.parse(call.args[call.args.indexOf('--agents') + 1])
+    assert.deepEqual(forwarded, definitions)
+    assert.equal(Object.hasOwn(forwarded.inherited, 'effort'), false)
+    assert.equal(Object.hasOwn(receipt.native.requested.agents.definitions.inherited, 'effort'), false)
+  }
+})
+
 test('Agent/Workflow/advisor controls reach the CLI without changing credentials or model answer', async () => {
   const f = fixture('native-child'), events = []
   const receipt = await runMachine({ ...f.request, native: { version: 1,
@@ -261,13 +300,18 @@ test('independent job validation does not start cloud work or hide the real inte
 
 test('interactive teams use the real terminal command interface and isolated control lifecycle', async () => {
   const f = fixture('team-hang'), ready = Promise.withResolvers(), recoveryDirectory = join(f.cwd, 'team-journal')
+  const native = { version: 1, agents: { enabled: true, definitions: {
+    implementer: { description: 'Implement', prompt: 'Complete the assigned task', model: 'sonnet', effort: 'xhigh' },
+    inherited: { description: 'Use native defaults', prompt: 'Complete the assigned task' },
+  } } }
   const tmuxCommand = fileURLToPath(new URL('./fixtures/fake-tmux.mjs', import.meta.url))
   chmodSync(tmuxCommand, 0o755)
   const old = process.env.FAKE_TMUX_HOME
   process.env.FAKE_TMUX_HOME = f.cwd
   try {
     const running = runInteractiveTeam({ protocol: 1, requestId: 'team', cwd: f.cwd, command: f.request.command,
-      tmuxCommand, prompt: 'Implement with independent teammates', permissionMode: 'acceptEdits', timeoutMs: 5000, disposeGraceMs: 50 },
+      tmuxCommand, prompt: 'Implement with independent teammates', permissionMode: 'acceptEdits', model: 'opus', effort: 'medium', native,
+      timeoutMs: 5000, disposeGraceMs: 50 },
       { ...f.runtime, env: { ...f.runtime.env, FAKE_TMUX_HOME: f.cwd }, recoveryDirectory,
         onNativeEvent: event => { if (event.kind === 'interactive-ready') ready.resolve(event.id) } })
     const runId = await ready.promise
@@ -289,9 +333,14 @@ test('interactive teams use the real terminal command interface and isolated con
     assert.equal(receipt.execution.cancelled, true)
     assert.equal(receipt.cleanup.confirmed, true, JSON.stringify(receipt))
     assert.equal(receipt.completion.businessOutcome, 'unknown')
+    assert.equal(receipt.requested.effort, 'medium')
+    assert.deepEqual(receipt.native.requested, native)
     const call = JSON.parse(readFileSync(f.log, 'utf8').trim())
     assert.equal(call.args.includes('-p'), false)
     assert.equal(call.args[call.args.indexOf('--teammate-mode') + 1], 'in-process')
+    assert.equal(call.args[call.args.indexOf('--model') + 1], 'opus')
+    assert.equal(call.args[call.args.indexOf('--effort') + 1], 'medium')
+    assert.deepEqual(JSON.parse(call.args[call.args.indexOf('--agents') + 1]), native.agents.definitions)
     assert.equal(call.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS, '1')
     assert.ok(call.args.includes('Implement with independent teammates'))
     await assert.rejects(controlInteractiveTeam({ ...identity, action: 'send', text: 'again' }), /not pending/)
