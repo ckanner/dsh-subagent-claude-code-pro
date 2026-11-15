@@ -154,12 +154,15 @@ for (const stage of ['dispatch-intent', 'native-running', 'terminal', 'cleanup-c
   test('caller process-group SIGKILL at ' + stage + ' retains independently supervised evidence', { timeout: 20_000 }, async t => {
     const { dir, request, capture, journal } = fixture(t)
     const checkpoint = join(dir, 'checkpoint.json')
+    const pendingCheckpoint = checkpoint + '.pending'
     const script = `import { runMachine } from ${JSON.stringify(source)};
-      import { writeFileSync } from 'node:fs';
+      import { writeFileSync, renameSync } from 'node:fs';
       await runMachine(${JSON.stringify(request)}, { recoveryDirectory: ${JSON.stringify(journal)},
         env: {...process.env, FAKE_CLAUDE_LOG: ${JSON.stringify(capture)}, FAKE_CLAUDE_MODE: ${JSON.stringify(stage === 'native-running' ? 'hang' : 'normal')}},
         onLifecycle: async e => { if (e.event === ${JSON.stringify(stage === 'native-running' ? 'dispatch-intent' : stage)}) {
-          writeFileSync(${JSON.stringify(checkpoint)}, JSON.stringify(e)); ${stage === 'native-running' ? '' : 'await new Promise(() => {});'} } } });`
+          writeFileSync(${JSON.stringify(pendingCheckpoint)}, JSON.stringify(e));
+          renameSync(${JSON.stringify(pendingCheckpoint)}, ${JSON.stringify(checkpoint)});
+          ${stage === 'native-running' ? '' : 'await new Promise(() => {});'} } } });`
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], { detached: true, stdio: ['ignore', 'ignore', 'pipe'] })
     const exited = new Promise(resolve => { child.once('close', resolve) })
     child.stderr.on('data', () => {})
@@ -171,11 +174,12 @@ for (const stage of ['dispatch-intent', 'native-running', 'terminal', 'cleanup-c
     await exited
     let recovered = await recoverMachine({ protocol: 1, requestId: request.requestId, runId: event.runId, recoveryDirectory: journal })
     const end = Date.now() + 10_000
-    while (recovered.status !== 'terminal' && Date.now() < end) {
+    while ((recovered.status !== 'terminal' || recovered.lifecycle?.event !== 'cleanup-confirmed') && Date.now() < end) {
       await delay(25)
       recovered = await recoverMachine({ protocol: 1, requestId: request.requestId, runId: event.runId, recoveryDirectory: journal })
     }
     assert.equal(recovered.status, 'terminal', JSON.stringify(recovered))
+    assert.equal(recovered.lifecycle.event, 'cleanup-confirmed', JSON.stringify(recovered))
     assert.equal(recovered.receipt.cleanup.confirmed, true)
     assert.equal(recovered.receipt.ok, stage === 'terminal' || stage === 'cleanup-confirmed')
     if (stage === 'terminal' || stage === 'cleanup-confirmed') assert.equal(recovered.receipt.execution.cancelled, false)
