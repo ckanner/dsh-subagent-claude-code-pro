@@ -89,3 +89,37 @@ test('an unprobeable process group cannot produce a successful checkpoint', asyn
     })
   } finally { replacement.mock.restore() }
 })
+
+test('a later cancellation during timeout cleanup cannot replace the timeout cause', async t => {
+  const input = { ...request(), timeoutMs: 300, disposeGraceMs: 50 }
+  const controller = new AbortController(), original = process.kill
+  const replacement = t.mock.method(process, 'kill', (pid, signal) => {
+    const value = original.call(process, pid, signal)
+    if (pid < 0 && signal === 'SIGTERM') controller.abort()
+    return value
+  })
+  try {
+    await assert.rejects(runLocalClaude({ ...input, env: { ...process.env, FAKE_CLAUDE_MODE: 'ignore-term' },
+      signal: controller.signal,
+      args: buildArguments({ session: { kind: 'new', sessionId: '22222222-2222-4222-8222-222222222222' }, permissionMode: input.permissionMode, model: input.model }),
+      input: userMessageLine({ text: input.prompt }) }), error => {
+      assert.equal(error.facts.category, 'timeout')
+      assert.equal(error.run.execution.timedOut, true)
+      assert.equal(error.run.execution.cancelled, false)
+      assert.equal(error.run.cleanupConfirmed, true)
+      return true
+    })
+  } finally { replacement.mock.restore() }
+})
+
+test('a later wall deadline during cancellation cleanup cannot replace caller cancellation', async () => {
+  const input = { ...request(), timeoutMs: 500, disposeGraceMs: 600 }, controller = new AbortController()
+  const result = await runLocalClaude({ ...input, env: { ...process.env, FAKE_CLAUDE_MODE: 'ignore-term' },
+    signal: controller.signal, onActivity: () => controller.abort(),
+    args: buildArguments({ session: { kind: 'new', sessionId: '22222222-2222-4222-8222-222222222222' }, permissionMode: input.permissionMode, model: input.model }),
+    input: userMessageLine({ text: input.prompt }) })
+  assert.equal(result.stopReason, 'aborted')
+  assert.equal(result.execution.cancelled, true)
+  assert.equal(result.execution.timedOut, false)
+  assert.equal(result.cleanupConfirmed, true)
+})

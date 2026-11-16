@@ -196,11 +196,38 @@ if (has('--json-schema')) {
     answer = JSON.stringify(structured)
   }
 }
+if (mode === 'activity-startup-hook') {
+  for (let i = 0; i < 8; i++) {
+    emit({ type: 'system', subtype: i === 0 ? 'hook_started' : 'hook_progress', session_id: sessionId,
+      hook_id: 'startup-hook', hook_event: 'SessionStart', output: 'private-hook-output' })
+    await sleep(100)
+  }
+}
 if (mode !== 'no-init') init()
+if (mode === 'native-identity-overflow') {
+  for (let i = 0; i < 4096; i++) {
+    if (!emit({ type: 'system', subtype: 'task_started', session_id: sessionId,
+      task_id: 'ambient-' + i, run_id: 'run-' + i, ambient: true })) await once(process.stdout, 'drain')
+  }
+  emit({ type: 'system', subtype: 'task_started', session_id: sessionId,
+    task_id: 'unrecorded-remote', run_id: 'remote-run', task_type: 'remote_agent' })
+  await sleep(60000)
+}
 if (mode.startsWith('activity-')) {
   if (!has('--include-partial-messages') || !has('--forward-subagent-text')) process.exit(2)
   if (mode === 'activity-silent') await sleep(60000)
   if (mode === 'activity-budget') await sleep(3000)
+  if (mode === 'activity-ambient') {
+    const task = { task_id: 'ambient-watcher', run_id: 'ambient-run', task_type: 'local_bash', ambient: true }
+    emit({ type: 'system', subtype: 'task_started', session_id: sessionId, ...task })
+    for (let i = 0; i < 8; i++) {
+      emit({ type: 'system', subtype: 'background_tasks_changed', session_id: sessionId, tasks: [task] })
+      emit({ type: 'system', subtype: 'task_progress', session_id: sessionId, task_id: task.task_id, run_id: task.run_id,
+        usage: { total_tokens: 0, tool_uses: i, duration_ms: i * 100 } })
+      await sleep(100)
+    }
+    emit({ type: 'system', subtype: 'task_notification', session_id: sessionId, ...task, status: 'completed' })
+  }
   if (mode === 'activity-volume') {
     for (let i = 0; i < 1100; i++) {
       if (!emit({ type: 'stream_event', session_id: sessionId, parent_tool_use_id: null,

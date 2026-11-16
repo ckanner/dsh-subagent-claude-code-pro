@@ -112,8 +112,30 @@ Repeated task progress remains activity even when the native state ledger
 correctly deduplicates its unchanged state. A callback exception cannot change
 execution, and callbacks stop after cancellation or settlement.
 
-Root activity must follow a valid owned session initialization; a conflicting
+Ambient tasks are not session work. Their identities remain excluded when later
+progress omits the `ambient` flag, and they cannot leave a phantom pending child
+in the native completion ledger. Background task-list snapshots update this
+identity bookkeeping without generating activity. The task identity cache is
+bounded to 4,096 runs and 1 MiB of keys; overflow suppresses task activity and,
+when native tracking is enabled, leaves native completion and cleanup unconfirmed.
+The same rule applies if the child ownership ledger fills: an unrecorded task may
+own remote work, even when no retained child identifies it. The separate local
+process-group cleanup receipt can still be confirmed. Truncating event history
+alone does not discard otherwise complete ownership evidence.
+Explicit run IDs select their exact recorded run; events without a run ID use
+the current run, including after a legacy unversioned run. A repeated old start
+cannot replace a newer current run. Stored child state still uses its exact run
+identity, so an old ambient child cannot become pending work again.
+Positive `thinking_tokens` increments also count as observed thinking activity.
+These rules follow the official [task-message contract](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage).
+
+Root activity normally follows a valid owned session initialization; a conflicting
 session ID on a known root frame fails immediately, before progress is emitted.
+An exception is a startup hook: its start, output and completion can arrive before
+`system/init`, so a new persistent or resumed call accepts matching hook events
+for the session ID the caller already chose. Ephemeral calls still require init;
+an arbitrary observed ID cannot establish ownership. See the official
+[hook-message timing](https://code.claude.com/docs/en/agent-sdk/typescript#sdkhookstartedmessage).
 The dedicated CLI may forward child transcripts with different session IDs and
 its `parent_tool_use_id` marker, regardless of whether a native profile was
 requested. Missing-ID and unknown event types never supply activity.
@@ -125,6 +147,11 @@ quiet between its start and completion: callers must treat an idle deadline as
 an explicit resource policy, not proof of a dead provider. Independent
 `ultrareview` and interactive tmux jobs use different protocols and do **not**
 inherit the machine query's streaming-activity capability.
+
+The first stop cause is fixed before process-group cleanup starts. A later
+cancellation cannot overwrite an already-triggered wall timeout, and a deadline
+that expires while cleaning up a cancelled invocation cannot relabel it as a
+timeout. Cleanup retains its own bounded grace period and evidence.
 
 For desktop/PTC foreground and background queries, an optional Flywheel host
 extension can expose `ctx.get('flywheelProviderActivity')` with

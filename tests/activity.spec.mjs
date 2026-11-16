@@ -43,6 +43,47 @@ test('activity schema is private, bounded and driven only by actual events', () 
   assert.equal(validActivity({ ...events[0], text: 'not allowed' }), false)
 })
 
+test('task activity keeps ambient run identities separate and omits task-list snapshots', () => {
+  let now = 0
+  const events = [], reporter = createActivityReporter(e => events.push(e), 1, { now: () => ++now })
+  const observe = event => reporter.observe({ type: 'system', session_id: 'root', ...event })
+  observe({ subtype: 'task_started', task_id: 'watcher', run_id: 'old-run', ambient: true })
+  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'old-run' })
+  observe({ subtype: 'task_progress', task_id: 'watcher' })
+  observe({ subtype: 'background_tasks_changed', tasks: [{ task_id: 'second', ambient: true }] })
+  observe({ subtype: 'task_progress', task_id: 'second' })
+  assert.equal(events.length, 0)
+  observe({ subtype: 'task_started', task_id: 'watcher', run_id: 'new-run', ambient: false })
+  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'new-run' })
+  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'old-run' })
+  observe({ subtype: 'task_notification', task_id: 'watcher', run_id: 'old-run', ambient: true })
+  observe({ subtype: 'task_progress', task_id: 'watcher' })
+  assert.equal(events.length, 3, 'the resumed ordinary run is not hidden by an old ambient run')
+  observe({ subtype: 'thinking_tokens', estimated_tokens_delta: 4 })
+  assert.deepEqual(events.at(-1).eventTypes, ['assistant-thinking'])
+  observe({ subtype: 'thinking_tokens', estimated_tokens_delta: 0 })
+  assert.equal(events.length, 4, 'unchanged thinking estimates do not invent progress')
+  observe({ subtype: 'task_progress' })
+  assert.equal(events.length, 4, 'a task without identity cannot provide task activity')
+})
+
+for (const previousRun of [undefined, 'old-run']) test(`current task activity survives an older ambient ${previousRun ?? 'unversioned'} identity`, () => {
+  let now = 0
+  const events = [], reporter = createActivityReporter(e => events.push(e), 1, { now: () => ++now })
+  const observe = event => reporter.observe({ type: 'system', session_id: 'root', task_id: 'reused-task', ...event })
+  const old = { subtype: 'task_started', ambient: true, ...(previousRun === undefined ? {} : { run_id: previousRun }) }
+  observe(old)
+  observe({ subtype: 'task_started', run_id: 'new-run', ambient: false })
+  if (previousRun !== undefined) observe(old)
+  for (let n = 1; n <= 3; n++) observe({ subtype: 'task_progress', usage: { total_tokens: n, tool_uses: n, duration_ms: n * 100 } })
+  assert.equal(events.length, 4, 'an old ambient identity cannot hide current unversioned progress')
+  assert.ok(events.slice(1).every(event => event.eventTypes.includes('task-progress')))
+  if (previousRun !== undefined) observe({ subtype: 'task_progress', run_id: previousRun })
+  observe({ ...old, subtype: 'task_notification' })
+  assert.equal(events.length, 4, 'explicit old ambient identities remain excluded')
+  reporter.close()
+})
+
 for (const mode of ['activity-root', 'activity-child']) test(`${mode} reaches the public API through both supervisors without exposing bodies`, async () => {
   const f = fixture(mode), activity = [], progress = []
   const directory = join(f.cwd, 'journal')
@@ -71,6 +112,25 @@ test('continued native task progress survives state-ledger deduplication', async
   assert.equal(receipt.native.observed.events.filter(e => e.kind === 'task-progress').length, 1,
     'durable state deduplication is independent of observed activity')
   assert.equal(receipt.native.children[0].usage.total_tokens, 12)
+})
+
+test('ambient tasks and their unmarked progress do not provide work activity or block completion', async () => {
+  const f = fixture('activity-ambient'), activity = []
+  const receipt = await f.run({ native: { version: 1, agents: { enabled: true } } }, {
+    activityIntervalMs: 10, onActivity: e => activity.push(e),
+  })
+  assert.equal(receipt.ok, true, JSON.stringify(receipt))
+  assert.equal(receipt.native.children.length, 0)
+  assert.ok(activity.every(e => e.eventTypes.every(kind => !kind.startsWith('task-'))), JSON.stringify(activity))
+})
+
+test('matching startup hook activity reaches the public API before session initialization', async () => {
+  const f = fixture('activity-startup-hook'), activity = []
+  const receipt = await f.run({}, { activityIntervalMs: 10, onActivity: e => activity.push(e) })
+  assert.equal(receipt.ok, true, JSON.stringify(receipt))
+  assert.ok(activity.filter(e => e.eventTypes.includes('hook-progress')).length >= 7, JSON.stringify(activity))
+  assert.equal(activity[0].eventTypes[0], 'hook-started')
+  assert.doesNotMatch(JSON.stringify(activity), /private-hook-output/)
 })
 
 test('100000 raw stream deltas produce bounded metadata and a trustworthy final receipt', async () => {

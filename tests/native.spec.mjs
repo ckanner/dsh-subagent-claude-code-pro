@@ -197,6 +197,108 @@ test('queued Agent tool calls do not masquerade as active native workers', () =>
   assert.match(collector.nativeReport().diagnostic, /subagents exceeded/)
 })
 
+test('ambient identity changes remove non-work tasks from native completion and preserve resumed work', () => {
+  const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
+  tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  const task = { task_id: 'watcher', run_id: 'old-run', task_type: 'local_bash' }
+  const send = event => tracker.observe({ type: 'system', session_id: 'root', ...event })
+  send({ subtype: 'task_started', ...task })
+  assert.equal(tracker.report().completion.confirmed, false)
+  send({ subtype: 'background_tasks_changed', tasks: [{ ...task, ambient: true }] })
+  send({ subtype: 'task_progress', ...task })
+  assert.equal(tracker.report().children.length, 0)
+  assert.equal(tracker.report().completion.confirmed, true)
+  assert.equal(tracker.acceptsOrigin({ kind: 'task-notification', runId: task.run_id }), false)
+  send({ subtype: 'task_started', ...task, run_id: 'new-run', ambient: false })
+  send({ subtype: 'task_notification', ...task, status: 'completed', ambient: true })
+  assert.deepEqual(tracker.report().completion.pendingIds, ['watcher'])
+  send({ subtype: 'task_notification', ...task, run_id: 'new-run', status: 'completed' })
+  assert.equal(tracker.report().completion.confirmed, true)
+})
+
+test('a legacy ambient child stays excluded when current unversioned activity belongs to a newer run', () => {
+  const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
+  tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  const send = event => tracker.observe({ type: 'system', session_id: 'root', task_id: 'watcher', ...event })
+  send({ subtype: 'task_started', task_type: 'local_bash' })
+  send({ subtype: 'background_tasks_changed', tasks: [{ task_id: 'watcher', ambient: true }] })
+  assert.equal(tracker.report().children.length, 0)
+  send({ subtype: 'task_started', run_id: 'ordinary-run', task_type: 'local_agent', ambient: false })
+  send({ subtype: 'task_progress' })
+  assert.equal(tracker.report().children.length, 1, 'the old ambient child cannot become current work again')
+  send({ subtype: 'task_notification', run_id: 'ordinary-run', status: 'completed' })
+  assert.equal(tracker.report().completion.confirmed, true)
+})
+
+test('ambient identity overflow cannot silently certify native completion', () => {
+  const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
+  tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  tracker.observe({ type: 'system', subtype: 'task_started', session_id: 'root', task_id: 'remote', task_type: 'remote_agent' })
+  for (let i = 0; i <= 4096; i++) tracker.observe({ type: 'system', subtype: 'task_started', session_id: 'root', task_id: 'ambient-' + i, ambient: true })
+  assert.match(tracker.error, /task identity ledger exceeds/)
+  assert.equal(tracker.report().completion.confirmed, false)
+  assert.equal(tracker.report().observed.truncated, true)
+  assert.equal(tracker.report(true).cleanup.confirmed, false)
+  assert.deepEqual(tracker.report(true).cleanup.pendingIds, ['remote'], 'identity overflow cannot erase known remote ownership')
+})
+
+for (const bound of ['count', 'bytes']) test(`native identity ${bound} overflow cannot certify cleanup of an unrecorded remote task`, () => {
+  const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
+  tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  const count = bound === 'count' ? 4096 : 17
+  const prefix = bound === 'count' ? 'ambient-' : 'x'.repeat(60000)
+  for (let i = 0; i < count; i++) tracker.observe({ type: 'system', subtype: 'task_started', session_id: 'root',
+    task_id: prefix + i, run_id: 'run-' + i, ambient: true })
+  assert.equal(tracker.error, undefined)
+  tracker.observe({ type: 'system', subtype: 'task_started', session_id: 'root',
+    task_id: bound === 'count' ? 'owned-remote' : 'remote-' + 'y'.repeat(60000), run_id: 'remote-run', task_type: 'remote_agent' })
+  const report = tracker.report(true)
+  assert.match(tracker.error, /task identity ledger exceeds/)
+  assert.equal(report.children.length, 0, 'the rejected identity cannot appear in the bounded ledger')
+  assert.equal(report.observed.truncated, true)
+  assert.equal(report.completion.confirmed, false)
+  assert.equal(report.cleanup.confirmed, false, 'local process cleanup cannot account for an unrecorded remote run')
+  assert.equal(report.cleanup.scope, 'remote-job')
+})
+
+test('native child ledger overflow cannot attest that all owned work was cleaned up', () => {
+  const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
+  tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  tracker.observe({ type: 'assistant', session_id: 'root', message: { content: Array.from({ length: 4097 }, (_, i) =>
+    ({ type: 'tool_use', id: 'agent-' + i, name: 'Agent', input: {} })) } })
+  const report = tracker.report(true)
+  assert.match(tracker.error, /native ledger exceeds/)
+  assert.equal(report.children.length, 4096)
+  assert.equal(report.cleanup.confirmed, false)
+  assert.equal(report.cleanup.scope, 'remote-job')
+})
+
+test('native event-history truncation preserves independently known local cleanup', () => {
+  const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
+  tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
+  const task = { type: 'system', session_id: 'root', task_id: 'local', run_id: 'local-run' }
+  tracker.observe({ ...task, subtype: 'task_started', task_type: 'local_agent' })
+  for (let i = 0; i < 4096; i++) tracker.observe({ ...task, subtype: 'task_updated', patch: { status: 'phase-' + i } })
+  tracker.observe({ ...task, subtype: 'task_notification', status: 'completed' })
+  const report = tracker.report(true)
+  assert.equal(report.observed.truncated, true)
+  assert.equal(report.children[0].state, 'completed')
+  assert.equal(report.cleanup.confirmed, true, 'discarded history does not imply missing owned identities')
+  assert.equal(report.cleanup.scope, 'local-process-group')
+})
+
+test('native identity overflow preserves local cleanup without claiming remote cleanup', async () => {
+  const f = fixture('native-identity-overflow')
+  const receipt = await runMachine({ ...f.request, native: { version: 1, agents: { enabled: true } } }, f.runtime)
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.failure.category, 'protocol')
+  assert.equal(receipt.execution.outcome, 'unknown')
+  assert.equal(receipt.cleanup.confirmed, true, 'the owned local process group is independently stopped')
+  assert.equal(receipt.native.observed.truncated, true)
+  assert.equal(receipt.native.cleanup.confirmed, false)
+  assert.equal(receipt.native.cleanup.scope, 'remote-job')
+})
+
 test('late tool linkage reconciles existing task runs and completed snapshots', () => {
   for (const snapshot of [false, true]) for (const terminalFirst of [false, true]) {
     const collector = createCollector({ native: { version: 1, agents: { enabled: true, maxConcurrent: 1 } } })

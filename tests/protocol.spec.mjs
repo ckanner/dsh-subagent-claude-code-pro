@@ -117,3 +117,19 @@ test('activity needs an owned initialized session; unknown events stay forward c
   assert.equal(collector.invalid, true)
   assert.equal(collector.owns(delta), false)
 })
+
+test('pre-init hook activity requires an explicit matching root identity', () => {
+  const hook = { type: 'system', subtype: 'hook_progress', session_id: 'owned', hook_id: 'setup' }
+  const named = createCollector({ expectedSessionId: 'owned' })
+  named.accept(hook)
+  assert.equal(named.owns(hook), true)
+  assert.equal(named.owns({ ...hook, session_id: 'other' }), false)
+  assert.equal(named.owns({ ...hook, parent_tool_use_id: 'child' }), false)
+  assert.equal(named.owns({ ...hook, subtype: 'task_progress' }), false)
+  const ephemeral = createCollector()
+  ephemeral.accept(hook)
+  assert.equal(ephemeral.owns(hook), false, 'an observed uninitialized ID is not caller-established ownership')
+  named.accept({ ...hook, session_id: 'other' })
+  assert.equal(named.invalid, true)
+  assert.equal(named.owns(hook), false)
+})

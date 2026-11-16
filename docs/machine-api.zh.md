@@ -161,14 +161,32 @@ help 最多读取 256 KiB，原文不会进入回执；`npm run doctor` 同样�
 的真实事件触发回调，时间经过不会生成心跳。native 状态账本去重不会抹掉持续 task progress
 的活动信号。取消/结束后停止回调；回调自身抛错不改变业务执行。
 
-只有初始化确认的本次根会话提供活动。已知根事件出现冲突 session ID 时立即失败，
+ambient 任务不属于本次会话工作。后续 progress 即使省略 `ambient`，也按已记录的任务/运行
+身份排除，既不提供活性，也不在 native 账本留下虚假的未完成子任务。后台任务集合快照只更新
+身份信息，不产生 activity。身份缓存最多 4,096 个 run、1 MiB 的键；超限后停止任务活动上报，
+启用 native 追踪时不能确认 native 完成或清理。子任务所有权账本超限时也采用同一规则：
+未保留的身份可能属于远程工作，不能因为现有 children 没列出它，就证明远程工作已停止。
+独立的本地进程组清理仍可确认为完成；只有事件历史被截断、所有权身份完整时，也保留可信清理。
+明确的 run ID 对应其精确运行；省略 run ID 的事件使用当前运行，即使历史中还有无 run ID
+的旧 ambient 任务。重放旧 start 不能把当前运行回退；持久子任务记录仍按自己的精确运行
+判断归属，旧 ambient 子任务不会重新变成未完成工作。`thinking_tokens` 的正数增量同样
+提供实际思考活动。依据[官方任务消息契约](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage)。
+
+通常由初始化确认的本次根会话提供活动。已知根事件出现冲突 session ID 时立即失败，
 不会先转发 activity 或展示文本。本次独占 CLI 转发的子 transcript 可使用不同 session ID
 及其 `parent_tool_use_id` 标记，不依赖是否启用 native profile。缺少 ID 或未知类型的事件
 不提供活动，未知类型继续保持协议向前兼容。
 
+启动 hook 是明确例外：其开始、输出及结束可以早于 `system/init`。新 persistent/resume
+调用已经由调用者确定会话 ID，因此可接收与该 ID 完全匹配的启动 hook 活动；ephemeral
+仍需等待 init，不能把任意观察到的 ID 当成归属证明。依据[官方 hook 消息时序](https://code.claude.com/docs/en/agent-sdk/typescript#sdkhookstartedmessage)。
+
 `onProgress` 仍是可选展示文本，两个通道都不是派发 ACK、最终结果、usage 回执或重试授权；
 activity 不写入 durable receipt。长工具在开始和完成之间仍可能没有事件，调用方必须把 idle
 限制视为明确资源策略，不能从沉默推导模型已死锁。
+
+开始进程组清理前固定最先发生的停止原因：wall timeout 后到来的 cancel 不会吞掉超时，
+用户取消后的清理期间达到 wall deadline 也不会被改报超时。清理继续使用独立有界宽限和事实核对。
 
 DSH/PTC 前台和后台查询可使用显式 Flywheel host extension：
 `ctx.get('flywheelProviderActivity')` 提供 `{ version: 1, intervalMs, report(agent, event) }`。

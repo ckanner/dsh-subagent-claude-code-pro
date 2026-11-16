@@ -3,6 +3,8 @@
 ## 0.5.2 (source candidate)
 
 - Add public metadata-only `onActivity` with bounded event-driven coalescing across root and child streams. Native task progress remains observable even when the durable state ledger deduplicates unchanged states.
+- Exclude ambient task identities and later unmarked progress from activity and native completion. Forward startup hook activity only for a caller-established session ID; keep the first timeout/cancellation cause stable during cleanup.
+- Preserve current-run activity across legacy ambient identities and replayed old starts. Ownership-ledger overflow leaves native cleanup unconfirmed while retaining independent local process cleanup evidence.
 - Replace the cumulative query-stream byte cutoff with per-frame and retained-output limits; bound intermediate display memory and callbacks without cancelling a long active run. Reject conflicting root-session activity immediately while retaining native child streams and unknown-event compatibility.
 - Probe the local CLI help through owned process supervision before delivering a prompt; require partial messages and foreground subagent forwarding, preserve one wall budget and reject unsupported CLIs without replay or leaked diagnostic text.
 - Forward foreground, PTC and background query activity to the optional Flywheel host extension without fabricating DSH assistant messages or heartbeats.
