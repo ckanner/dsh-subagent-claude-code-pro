@@ -59,6 +59,9 @@ const helpText = help.stdout + help.stderr
 const requiredFlags = [
   '--input-format',
   '--output-format',
+  '--include-partial-messages',
+  '--forward-subagent-text',
+  '--name',
   '--session-id',
   '--resume',
   '--fork-session',

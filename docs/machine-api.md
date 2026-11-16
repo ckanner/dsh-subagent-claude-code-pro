@@ -42,7 +42,7 @@ neither bundles Claude nor handles login.
 Every request supplies `protocol: 1`, a nonempty `requestId`, an existing
 absolute `cwd`, a self-contained `prompt`, an explicit native `permissionMode`,
 and `sessionMode: 'ephemeral' | 'persistent'`. Optional fields are `command`,
-`model`, `effort`, `sessionId`, `timeoutMs`, `disposeGraceMs`, `maxOutputBytes`,
+`model`, `effort`, `sessionId`, `sessionName`, `timeoutMs`, `disposeGraceMs`, `maxOutputBytes`,
 and `settingSources`. Unknown fields, invalid combinations and invalid runtime
 options fail before spawning with `MachineInputError`.
 
@@ -58,13 +58,110 @@ options fail before spawning with `MachineInputError`.
   successful terminal receipt and confirmed cleanup.
 - `requestId` correlates the caller's invocation; `runId` is a fresh UUID for
   the actual machine call. Neither is a provider-side idempotency key.
+- From 0.5.2, a new persistent query is named with `-n`. `sessionName` accepts an explicit single-line name of at most 512 UTF-8 bytes; otherwise the workspace directory name becomes a bounded `Claude · …` title. Task instructions never become an automatic session-list title. The DSH tool prefers its explicit description and otherwise uses the workspace name; interactive teams use the same safe fallback. Supplying `sessionName` with `sessionId` or ephemeral mode is rejected before spawn. Resumes never rename an existing user session, and ephemeral queries never add persistence for naming.
 
 The default deadline is 600,000 ms; `timeoutMs: 0` disables it. The default
 termination grace is 3,000 ms, followed by a bounded SIGKILL/reaping attempt.
-The default final-text limit is 1 MiB (configurable up to 16 MiB). Independently,
-stdout is capped at 64 MiB with a 16 MiB maximum NDJSON frame, including an
-unterminated frame. `settingSources` defaults to `user`, `project`, `local`;
+The default final-text limit is 1 MiB (configurable up to 16 MiB). Each NDJSON
+frame, including an unterminated frame, is limited to 16 MiB. Streamed activity
+does not consume a cumulative byte allowance. Intermediate display text retains
+only a 65,536-character tail, and optional display callbacks stop after 4 MiB or
+4,096 events with one omission notice; activity and the complete terminal answer
+remain separate. Retained image output is limited to 64 MiB and 1,024 images;
+exceeding a receipt or frame limit fails explicitly, with owned cleanup.
+Raw ultrareview JSON remains limited to 64 MiB and capability help to 256 KiB.
+`settingSources` defaults to `user`, `project`, `local`;
 an explicit empty array is forwarded as `--setting-sources ''`.
+
+## Observed activity and CLI compatibility (0.5.2)
+
+The query path first runs only `claude --help` through the same owned guardian.
+It sends no task prompt during this probe and requires the advertised
+`--include-partial-messages` and `--forward-subagent-text` flags, plus `--name`
+(or `-n`) when naming a session. The subagent flag requires Claude Code 2.1.211
+or newer; the actual help surface, rather than a guessed version string,
+establishes support. Unsupported flags produce a `not-dispatched` failure;
+there is no fallback dispatch or automatic replay. Probe time counts against
+the invocation wall deadline, its output is bounded to 256 KiB, and its text
+is never returned in a receipt. `npm run doctor` checks the required flags.
+See the [official CLI flags](https://code.claude.com/docs/en/cli-reference) and
+[streaming contract](https://code.claude.com/docs/en/headless#stream-responses).
+
+The public export advertises `MACHINE_ACTIVITY_VERSION: 1` and
+`MACHINE_ACTIVITY_CAPABILITIES: { version: 1, metadataOnly: true, coalesced: true,
+rootAndChildren: true }` for machine queries. Pass `onActivity(event)` and,
+optionally, `activityIntervalMs` (integer 1–60,000, default 250 ms):
+
+```js
+const receipt = await runMachine(request, {
+  onActivity(event) { observeOwnedInvocationActivity(request.requestId, event) },
+  activityIntervalMs: 250,
+})
+```
+
+An event has exactly `version`, `sequence`, `kind: 'provider-progress'`,
+`source: 'claude-code-pro'`, `scope: 'root' | 'child' | 'mixed'`, `eventTypes`
+(at most 16 known labels), and `observedEvents`. Sequence is monotonic for the
+query. Labels describe assistant text/thinking, tool use/results/progress,
+partial stream events, task lifecycle/progress, API retries, hook events,
+initialization, compaction or the terminal result. They contain no raw text,
+reasoning, tool arguments/results, private IDs, credentials or usage counters.
+One coalescer covers the whole observed tree. Only newly received provider
+events trigger callbacks; time passing alone never emits a heartbeat.
+Repeated task progress remains activity even when the native state ledger
+correctly deduplicates its unchanged state. A callback exception cannot change
+execution, and callbacks stop after cancellation or settlement.
+
+Ambient tasks are not session work. Their identities remain excluded when later
+progress omits the `ambient` flag, and they cannot leave a phantom pending child
+in the native completion ledger. Background task-list snapshots update this
+identity bookkeeping without generating activity. The task identity cache is
+bounded to 4,096 runs and 1 MiB of keys; overflow suppresses task activity and,
+when native tracking is enabled, leaves native completion and cleanup unconfirmed.
+The same rule applies if the child ownership ledger fills: an unrecorded task may
+own remote work, even when no retained child identifies it. The separate local
+process-group cleanup receipt can still be confirmed. Truncating event history
+alone does not discard otherwise complete ownership evidence.
+Explicit run IDs select their exact recorded run; events without a run ID use
+the current run, including after a legacy unversioned run. Current run selection
+uses the provider's plain-string ordering of one task's run IDs: an older start
+or snapshot cannot replace a newer run, even when that old run is first observed
+late. A legacy entry without a run ID cannot replace an established versioned
+current run. Stored child state still uses its exact run
+identity, so an old ambient child cannot become pending work again.
+Positive `thinking_tokens` increments also count as observed thinking activity.
+These rules follow the official [task-message contract](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage).
+
+Root activity normally follows a valid owned session initialization; a conflicting
+session ID on a known root frame fails immediately, before progress is emitted.
+An exception is a startup hook: its start, output and completion can arrive before
+`system/init`, so a new persistent or resumed call accepts matching hook events
+for the session ID the caller already chose. Ephemeral calls still require init;
+an arbitrary observed ID cannot establish ownership. See the official
+[hook-message timing](https://code.claude.com/docs/en/agent-sdk/typescript#sdkhookstartedmessage).
+The dedicated CLI may forward child transcripts with different session IDs and
+its `parent_tool_use_id` marker, regardless of whether a native profile was
+requested. Missing-ID and unknown event types never supply activity.
+
+`onProgress` remains optional display text. Neither channel is a dispatch ACK,
+terminal result, usage receipt, proof of model quality or permission to retry.
+Activity does not become part of a durable receipt. A long tool can still be
+quiet between its start and completion: callers must treat an idle deadline as
+an explicit resource policy, not proof of a dead provider. Independent
+`ultrareview` and interactive tmux jobs use different protocols and do **not**
+inherit the machine query's streaming-activity capability.
+
+The first stop cause is fixed before process-group cleanup starts. A later
+cancellation cannot overwrite an already-triggered wall timeout, and a deadline
+that expires while cleaning up a cancelled invocation cannot relabel it as a
+timeout. Cleanup retains its own bounded grace period and evidence.
+
+For desktop/PTC foreground and background queries, an optional Flywheel host
+extension can expose `ctx.get('flywheelProviderActivity')` with
+`{ version: 1, intervalMs, report(agent, event) }`. The plugin supplies the real
+DSH Agent and activity metadata plus a per-call `invocationId`; the host owns
+lineage checks. This is an explicit plugin extension, not a DSH assistant
+stream API. Without that service, desktop behavior is unchanged.
 
 ## Configuration evidence
 
@@ -164,3 +261,5 @@ completeness, and surviving descendants. Package export and installation checks
 use the actual candidate tarball. These are offline contract tests; they do not
 claim real Claude model inference, account validity, or macOS-specific runtime
 acceptance for the new machine interface.
+
+[0.5.2 offline activity and naming validation](activity-validation.md).

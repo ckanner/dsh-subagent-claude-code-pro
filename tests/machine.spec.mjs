@@ -171,7 +171,9 @@ test('caller cancellation after CLI startup settles the complete owned group wit
 
 test('deadline escalates to SIGKILL when the CLI ignores SIGTERM', async () => {
   const f = fixture('ignore-term')
-  const result = await f.run({ timeoutMs: 200, disposeGraceMs: 25 })
+  // Leave room for the read-only capability probe and real process startup;
+  // the query must install its SIGTERM handler before testing escalation.
+  const result = await f.run({ timeoutMs: 2000, disposeGraceMs: 25 })
   assert.equal(result.failure.category, 'timeout')
   assert.equal(result.execution.timedOut, true)
   assert.equal(result.execution.signal, 'SIGKILL')

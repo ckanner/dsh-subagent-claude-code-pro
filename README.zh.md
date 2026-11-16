@@ -30,6 +30,8 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 
 从插件 0.5.1 起，原生 Agent 定义可为每个子级分别请求 `model` 和 `effort`；详见[子 Agent 推理等级与 CLI 优先级](docs/native-capabilities.zh.md#子-agent-推理等级)。
 
+从 0.5.2 起，长查询会传递主/子会话的有界真实活动，包括 thinking 和工具工作；发送 prompt 前检查 CLI 必需 flags，并为新的 persistent machine 会话设置可读名称。详见[活动、兼容性和命名](docs/machine-api.zh.md#真实活动与-cli-兼容性052)。
+
 单独的 `subagent_claude_code_native_job` PTC 工具提供显式 Review／交互 Team、恢复和控制。Review 每次要求 `consent:true`；普通 native 开关不会自动创建独立作业。完整原生工具保持可用，并发配置仍如实报告 `resourceBounds.hard=false`。详见[中文完整契约、PTC 示例与验证范围](docs/native-capabilities.zh.md)（[English](docs/native-capabilities.md)）。
 
 ## 为什么要这个插件
@@ -180,7 +182,7 @@ doctor 只打印 token 长度，不打印值。
 
 - 本机 `claude` CLI 已登录；插件不负责登录、刷新或改写凭据。
   `claude auth status` 应为 `loggedIn: true`。
-- 假定 `claude --version` ≥ 2.1；协议是 SDK 的 stream-json 行格式，CLI 升级可能
+- 需要 Claude Code 2.1.211+ 且实际支持所需流式 flags；协议是 SDK 的 stream-json 行格式，CLI 升级可能
   增删事件。插件忽略未知事件，无法解析终态则失败关闭。
 - Desktop 应用在启动时捕获环境；如果 PATH 里没有 `claude`，请把 `command` 指向
   绝对路径。

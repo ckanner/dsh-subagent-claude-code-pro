@@ -11,6 +11,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { join } from 'node:path'
 
 const args = process.argv.slice(2)
@@ -21,6 +22,16 @@ const flag = (name) => {
 const has = (name) => args.includes(name)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const emit = (value) => process.stdout.write(`${JSON.stringify(value)}\n`)
+
+if (has('--help')) {
+  if (process.env.FAKE_CLAUDE_HELP_LOG) appendFileSync(process.env.FAKE_CLAUDE_HELP_LOG, JSON.stringify({ args, pid: process.pid }) + '\n')
+  if (process.env.FAKE_CLAUDE_HELP_MODE === 'hang') await sleep(60000)
+  if (process.env.FAKE_CLAUDE_HELP_DELAY) await sleep(Number(process.env.FAKE_CLAUDE_HELP_DELAY))
+  const flags = ['--include-partial-messages', '--name', '-n',
+    ...(process.env.FAKE_CLAUDE_HELP_MODE === 'old' ? [] : ['--forward-subagent-text'])]
+  process.stdout.write((process.env.FAKE_CLAUDE_HELP_MODE === 'old' ? 'private-help-must-not-escape\n' : '') + flags.join('\n') + '\n')
+  process.exit(0)
+}
 
 let stdin = ''
 for await (const chunk of process.stdin) stdin += chunk
@@ -185,7 +196,89 @@ if (has('--json-schema')) {
     answer = JSON.stringify(structured)
   }
 }
+if (mode === 'activity-startup-hook') {
+  for (let i = 0; i < 8; i++) {
+    emit({ type: 'system', subtype: i === 0 ? 'hook_started' : 'hook_progress', session_id: sessionId,
+      hook_id: 'startup-hook', hook_event: 'SessionStart', output: 'private-hook-output' })
+    await sleep(100)
+  }
+}
 if (mode !== 'no-init') init()
+if (mode === 'native-identity-overflow') {
+  for (let i = 0; i < 4096; i++) {
+    if (!emit({ type: 'system', subtype: 'task_started', session_id: sessionId,
+      task_id: 'ambient-' + i, run_id: 'run-' + i, ambient: true })) await once(process.stdout, 'drain')
+  }
+  emit({ type: 'system', subtype: 'task_started', session_id: sessionId,
+    task_id: 'unrecorded-remote', run_id: 'remote-run', task_type: 'remote_agent' })
+  await sleep(60000)
+}
+if (mode.startsWith('activity-')) {
+  if (!has('--include-partial-messages') || !has('--forward-subagent-text')) process.exit(2)
+  if (mode === 'activity-silent') await sleep(60000)
+  if (mode === 'activity-budget') await sleep(3000)
+  if (mode === 'activity-ambient') {
+    const task = { task_id: 'ambient-watcher', run_id: 'ambient-run', task_type: 'local_bash', ambient: true }
+    emit({ type: 'system', subtype: 'task_started', session_id: sessionId, ...task })
+    for (let i = 0; i < 8; i++) {
+      emit({ type: 'system', subtype: 'background_tasks_changed', session_id: sessionId, tasks: [task] })
+      emit({ type: 'system', subtype: 'task_progress', session_id: sessionId, task_id: task.task_id, run_id: task.run_id,
+        usage: { total_tokens: 0, tool_uses: i, duration_ms: i * 100 } })
+      await sleep(100)
+    }
+    emit({ type: 'system', subtype: 'task_notification', session_id: sessionId, ...task, status: 'completed' })
+  }
+  if (mode === 'activity-volume') {
+    for (let i = 0; i < 1100; i++) {
+      if (!emit({ type: 'stream_event', session_id: sessionId, parent_tool_use_id: null,
+        event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'x'.repeat(65536) } } })) await once(process.stdout, 'drain')
+    }
+  }
+  if (mode === 'activity-frame-overflow') {
+    emit({ type: 'stream_event', session_id: sessionId, parent_tool_use_id: null,
+      event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'x'.repeat(17 * 1024 * 1024) } } })
+    await sleep(60000)
+  }
+  if (mode === 'activity-display-volume') {
+    for (let i = 0; i < 512; i++) {
+      if (!emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: 'x'.repeat(65536) }] } })) await once(process.stdout, 'drain')
+    }
+  }
+  if (mode.startsWith('activity-foreign-')) {
+    for (let i = 0; i < 8; i++) {
+      if (mode === 'activity-foreign-stream') emit({ type: 'stream_event', session_id: 'foreign-session', parent_tool_use_id: null,
+        event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'foreign-private-thought' } } })
+      else if (mode === 'activity-foreign-tool') emit({ type: 'tool_progress', session_id: 'foreign-session', tool_use_id: 'foreign-tool', elapsed_time_seconds: i })
+      else emit({ type: 'assistant', session_id: 'foreign-session', message: { content: [{ type: 'text', text: 'foreign-private-answer' }] } })
+      await sleep(100)
+    }
+  }
+  if (mode === 'activity-native') {
+    emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'tool_use', id: 'owned-agent', name: 'Agent', input: {} }] } })
+    emit({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'active-child', run_id: 'owned-run', task_type: 'local_agent', tool_use_id: 'owned-agent' })
+  }
+  const count = mode === 'activity-burst' ? 100000 : ['activity-root', 'activity-child', 'activity-native'].includes(mode) ? 12 : 0
+  for (let i = 1; i <= count; i++) {
+    const privateText = 'private-reasoning-or-tool-body'
+    if (mode === 'activity-root') {
+      emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'tool_use', id: 'read-' + i, name: 'Read', input: { privateText } }] } })
+      emit({ type: 'user', session_id: sessionId, message: { content: [{ type: 'tool_result', tool_use_id: 'read-' + i, content: privateText }] } })
+      emit({ type: 'system', subtype: 'api_retry', session_id: sessionId, attempt: i, retry_delay_ms: 100, error: 'overloaded' })
+    } else if (mode === 'activity-native') {
+      emit({ type: 'system', subtype: 'task_progress', session_id: sessionId, task_id: 'active-child', run_id: 'owned-run',
+        usage: { total_tokens: i, tool_uses: i, duration_ms: i * 100 } })
+    } else {
+      const parent_tool_use_id = mode === 'activity-child' ? 'child-only-tool' : null
+      if (mode === 'activity-child') emit({ type: 'assistant', session_id: 'child-session', parent_tool_use_id,
+        message: { content: [{ type: 'thinking', thinking: privateText }] } })
+      if (!emit({ type: 'stream_event', session_id: sessionId, parent_tool_use_id,
+        event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: privateText } } })) await once(process.stdout, 'drain')
+    }
+    if (mode !== 'activity-burst') await sleep(100)
+  }
+  if (mode === 'activity-native') emit({ type: 'system', subtype: 'task_notification', session_id: sessionId,
+    task_id: 'active-child', run_id: 'owned-run', status: 'completed' })
+}
 if (mode === 'duplicate-init') init()
 if (mode.startsWith('native-child')) {
   emit({ type: 'assistant', session_id: sessionId, parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'spawn-1', name: 'Agent', input: { model: 'child-model' } }] } })
@@ -208,4 +301,6 @@ result({
   result: answer,
   ...(structured === undefined ? {} : { structured_output: structured }),
 })
+// A burst can leave a small final write queued even after write() returned true.
+await new Promise(resolve => process.stdout.write('', resolve))
 process.exit(mode === 'nonzero-success' ? 2 : mode === 'limit' ? 1 : 0)
