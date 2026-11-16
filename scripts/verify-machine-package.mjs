@@ -34,8 +34,9 @@ try {
     inherited: { description: 'Follow CLI defaults', prompt: 'Use the native defaults.' },
   } } }
   const nativeLog = join(temp, 'native-argv.jsonl')
+  const activityLog = join(temp, 'activity-argv.jsonl')
   writeFileSync(join(installed, 'consumer.mjs'),
-    'import { runMachine, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
+    'import { runMachine, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES, MACHINE_ACTIVITY_VERSION, MACHINE_ACTIVITY_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
     + 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);\n'
     + 'for (const peer of ["@deepseek-ai/schemastery", "@deepseek-ai/dsh-home-paths"]) { try { require.resolve(peer); throw new Error("machine consumer unexpectedly installed " + peer); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; } }\n'
     + 'const request = ' + JSON.stringify(request) + '; const directory = ' + JSON.stringify(join(temp, 'journal')) + ';\n'
@@ -48,16 +49,22 @@ try {
     + 'if (!receipt.ok || JSON.stringify(recovered.receipt) !== JSON.stringify(receipt)) throw new Error("installed lifecycle mismatch");\n'
     + 'const resumed = await runMachine({ ...request, requestId: "packed-resume", sessionId: receipt.session.id });\n'
     + 'if (!resumed.ok || !resumed.session.resumed) throw new Error("installed resume mismatch");\n'
-    + 'process.stdout.write(JSON.stringify({ status: recovered.status, capabilities: MACHINE_LIFECYCLE_CAPABILITIES, events, resumed: resumed.session.resumed }));\n')
+    + 'if (MACHINE_ACTIVITY_VERSION !== 1 || !MACHINE_ACTIVITY_CAPABILITIES.metadataOnly || !MACHINE_ACTIVITY_CAPABILITIES.rootAndChildren) throw new Error("activity exports missing");\n'
+    + 'const activity = []; const active = await runMachine({...request, requestId:"packed-activity", sessionName:"Packed activity"}, {env:{...process.env,FAKE_CLAUDE_MODE:"activity-child",FAKE_CLAUDE_LOG:' + JSON.stringify(activityLog) + '},recoveryDirectory:' + JSON.stringify(join(temp, 'activity-journal')) + ',onLifecycle:()=>{},activityIntervalMs:50,onActivity:e=>activity.push(e)});\n'
+    + 'if (!active.ok || activity.filter(e=>e.scope==="child").length<3 || JSON.stringify(activity).includes("private-reasoning")) throw new Error("installed activity mismatch");\n'
+    + 'process.stdout.write(JSON.stringify({ status: recovered.status, capabilities: MACHINE_LIFECYCLE_CAPABILITIES, events, resumed: resumed.session.resumed, activity:true }));\n')
   const observed = JSON.parse(run(process.execPath, [join(installed, 'consumer.mjs')]))
   assert.deepEqual(observed, { status: 'terminal',
     capabilities: { version: 1, durableJournal: true, readOnlyRecovery: true, threadReadyBeforeDispatch: false },
-    events: ['dispatch-intent', 'dispatch-possible', 'terminal', 'cleanup-confirmed'], resumed: true })
+    events: ['dispatch-intent', 'dispatch-possible', 'terminal', 'cleanup-confirmed'], resumed: true, activity: true })
   const nativeCall = JSON.parse(readFileSync(nativeLog, 'utf8').trim())
   assert.deepEqual(JSON.parse(nativeCall.args[nativeCall.args.indexOf('--agents') + 1]), nativeRequest.agents.definitions)
   assert.equal(nativeCall.args[nativeCall.args.indexOf('--effort') + 1], request.effort)
+  const activeCall = JSON.parse(readFileSync(activityLog, 'utf8').trim())
+  assert.equal(activeCall.args[activeCall.args.indexOf('-n') + 1], 'Packed activity')
+  assert.ok(activeCall.args.includes('--include-partial-messages') && activeCall.args.includes('--forward-subagent-text'))
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   process.stdout.write(JSON.stringify({ ok: true, version: manifest.version, actualNpmInstall: true,
     publicMachineAPI: true, machineSupervisor: true, durableLifecycle: true, readOnlyRecovery: true, explicitResume: true,
-    nativeChildEffort: true, inferenceRequests: 0 }) + '\n')
+    nativeChildEffort: true, observedActivity: true, namedSession: true, inferenceRequests: 0 }) + '\n')
 } finally { rmSync(temp, { recursive: true, force: true }) }

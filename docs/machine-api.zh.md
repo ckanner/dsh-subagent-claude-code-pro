@@ -54,7 +54,10 @@ if (receipt.ok && receipt.session.resumable) {
 
 默认超时 600,000 毫秒，`timeoutMs: 0` 关闭时限；终止宽限默认 3,000 毫秒，
 随后执行有界 SIGKILL 与清理核对。最终文本默认上限 1 MiB，最高可配 16 MiB。
-stdout 总量单独限制为 64 MiB，每条 NDJSON 帧最多 16 MiB，未换行帧也计入限制。
+每条 NDJSON 帧最多 16 MiB，未换行帧也计入限制；持续活动不消耗累计 stdout 字节预算。
+内部展示文本只保留最近 65,536 个字符，可选展示回调在 4 MiB 或 4,096 条后以一条省略提示
+停止；activity 和完整最终答案独立保留。输出图片限制为 64 MiB、1,024 张；帧或回执超限
+会明确失败并清理所拥有进程。原始 ultrareview JSON 仍限制为 64 MiB，capability help 为 256 KiB。
 `settingSources` 默认 `user/project/local`；显式空数组会传递
 `--setting-sources ''`，不会意外恢复默认设置。
 
@@ -134,3 +137,51 @@ npm test 通过真实派生的本地 fixture 进程验证普通调用、续接�
 边界、取消、超时、协议错误、计量完整性和残存子孙清理；导出和安装检查使用实际
 候选 tarball。这些是离线契约测试，不代表新 machine API 已通过真实 Claude
 推理、账户可用性或 macOS 专项验收。
+
+## 真实活动与 CLI 兼容性（0.5.2）
+
+查询前先通过同一 guardian 执行只读 `claude --help`，不发送任务 prompt。必须实际宣告
+`--include-partial-messages`、`--forward-subagent-text`，命名时还需 `--name` 或 `-n`。
+子代理转发 flag 要求 Claude Code 2.1.211 或以上；以真实 help 能力而不是猜测版本号作准入。
+缺少能力返回 `not-dispatched`，不降级执行、不自动重试。探测时间计入同一次 wall deadline，
+help 最多读取 256 KiB，原文不会进入回执；`npm run doctor` 同样检查这些 flags。
+参考[官方 CLI 参数](https://code.claude.com/docs/en/cli-reference)与
+[流式契约](https://code.claude.com/docs/en/headless#stream-responses)。
+
+公共接口新增 `MACHINE_ACTIVITY_VERSION: 1`，以及
+`MACHINE_ACTIVITY_CAPABILITIES: { version: 1, metadataOnly: true, coalesced: true, rootAndChildren: true }`。
+它描述 machine query 的能力，不涵盖独立 ultrareview 或 tmux interactive-team 协议。
+调用时可传 `onActivity(event)` 和 `activityIntervalMs`（1–60000 的整数，默认 250ms）。
+
+事件仅包含 `version`、`sequence`、`kind: 'provider-progress'`、`source: 'claude-code-pro'`、
+`scope: 'root' | 'child' | 'mixed'`、`eventTypes`（最多 16 个已知类型）与 `observedEvents`。
+类型覆盖主/子 assistant 文本与 thinking、tool use/result/progress、partial stream、task
+生命周期和 progress、API retry、hook、init、compaction 与 result。没有正文、思考内容、
+工具参数/结果、私有 ID、凭证或消耗计数。整个已观察任务树共享一个有界合并器；只有新收到
+的真实事件触发回调，时间经过不会生成心跳。native 状态账本去重不会抹掉持续 task progress
+的活动信号。取消/结束后停止回调；回调自身抛错不改变业务执行。
+
+只有初始化确认的本次根会话提供活动。已知根事件出现冲突 session ID 时立即失败，
+不会先转发 activity 或展示文本。本次独占 CLI 转发的子 transcript 可使用不同 session ID
+及其 `parent_tool_use_id` 标记，不依赖是否启用 native profile。缺少 ID 或未知类型的事件
+不提供活动，未知类型继续保持协议向前兼容。
+
+`onProgress` 仍是可选展示文本，两个通道都不是派发 ACK、最终结果、usage 回执或重试授权；
+activity 不写入 durable receipt。长工具在开始和完成之间仍可能没有事件，调用方必须把 idle
+限制视为明确资源策略，不能从沉默推导模型已死锁。
+
+DSH/PTC 前台和后台查询可使用显式 Flywheel host extension：
+`ctx.get('flywheelProviderActivity')` 提供 `{ version: 1, intervalMs, report(agent, event) }`。
+插件传真实 DSH Agent、上述安全元数据与每次调用唯一的 `invocationId`，由 host 校验归属。
+这不是伪造的 DSH assistant-stream；没有该扩展时保留普通桌面行为。
+
+### 可读会话名称
+
+新 persistent machine query 可传 `sessionName`（单行、最多 512 UTF-8 字节）；未传时，
+从工作目录名生成有界的 `Claude · …` 标题，并通过 `-n` 设置，不把任务私密指令自动写入
+会话列表。DSH 工具优先使用显式 description，缺省时使用工作目录名；新 interactive-team
+同样支持 `sessionName` 和工作目录名回退。
+`sessionId` resume 或 ephemeral query 携带 `sessionName` 会在 spawn 前拒绝，避免误改用户旧会话名。
+恢复现有会话不会重新命名；ephemeral 不会为了显示名称而强制保存历史。
+
+[0.5.2 离线活动与命名验证记录（英文）](activity-validation.md)。

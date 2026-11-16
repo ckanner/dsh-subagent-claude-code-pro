@@ -340,6 +340,7 @@ test('interactive teams use the real terminal command interface and isolated con
     assert.equal(call.args[call.args.indexOf('--teammate-mode') + 1], 'in-process')
     assert.equal(call.args[call.args.indexOf('--model') + 1], 'opus')
     assert.equal(call.args[call.args.indexOf('--effort') + 1], 'medium')
+    assert.equal(call.args[call.args.indexOf('-n') + 1], 'Claude team · ' + f.cwd.split('/').at(-1))
     assert.deepEqual(JSON.parse(call.args[call.args.indexOf('--agents') + 1]), native.agents.definitions)
     assert.equal(call.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS, '1')
     assert.ok(call.args.includes('Implement with independent teammates'))

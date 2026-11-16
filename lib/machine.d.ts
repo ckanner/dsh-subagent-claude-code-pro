@@ -19,6 +19,8 @@ export interface MachineRequest {
   permissionMode: PermissionMode
   sessionMode: 'ephemeral' | 'persistent'
   sessionId?: string
+  /** Optional readable name for a new persistent session; never renames a resume. */
+  sessionName?: string
   timeoutMs?: number
   disposeGraceMs?: number
   maxOutputBytes?: number
@@ -28,12 +30,22 @@ export interface MachineRequest {
   outputSchema?: Record<string, unknown>
   maxBudgetUsd?: number
 }
+export const MACHINE_ACTIVITY_VERSION: 1
+export const MACHINE_ACTIVITY_CAPABILITIES: Readonly<{ version: 1; metadataOnly: true; coalesced: true; rootAndChildren: true }>
+export interface MachineActivity {
+  version: 1; sequence: number; kind: 'provider-progress'; source: 'claude-code-pro'
+  scope: 'root' | 'child' | 'mixed'; eventTypes: string[]; observedEvents: number
+}
 export interface MachineRuntime {
   signal?: AbortSignal
   env?: Record<string, string | undefined>
   /** Explicit secrets for the child; never copied into a receipt. */
   credentialEnv?: Partial<Record<'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN' | 'CLAUDE_CODE_OAUTH_TOKEN' | 'ANTHROPIC_BASE_URL', string>>
   onProgress?: (text: string) => void
+  /** Metadata from observed CLI activity, independent of display text and receipts. */
+  onActivity?: (event: MachineActivity) => void
+  /** Event-driven coalescing interval, integer 1..60000; default 250 ms. */
+  activityIntervalMs?: number
   /** Advisory metadata; does not authorize or ACK dispatch. */
   onNativeEvent?: (event: NativeEvent) => void
   /** Resolve only after durably saving this checkpoint; rejection stops dispatch. */
@@ -54,6 +66,7 @@ export interface MachineReceipt {
     permissionMode: PermissionMode
     sessionMode: 'ephemeral' | 'persistent'
     sessionId: string | null
+    sessionName?: string
     settingSources: SettingSource[]
   }
   execution: {
@@ -191,7 +204,7 @@ export interface NativeReviewRequest {
   trustWorkspace?: boolean; timeoutMinutes?: number; timeoutMs?: number; disposeGraceMs?: number; maxOutputBytes?: number
 }
 export interface InteractiveTeamRequest {
-  protocol: 1; requestId: string; cwd: string; command?: string; tmuxCommand?: string; prompt: string;
+  protocol: 1; requestId: string; cwd: string; command?: string; tmuxCommand?: string; prompt: string; sessionName?: string;
   permissionMode: PermissionMode; model?: string; effort?: Effort; native?: NativeRequest;
   settingSources?: SettingSource[]; timeoutMs?: number; disposeGraceMs?: number; columns?: number; rows?: number
 }

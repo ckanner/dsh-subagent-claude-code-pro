@@ -79,3 +79,41 @@ test('a missing result fails closed', () => {
   assert.equal(finished.kind, 'failure')
   assert.equal(finished.facts.category, 'invalid-result')
 })
+
+test('intermediate display text retains a bounded tail without replacing the terminal answer', () => {
+  const collector = createCollector()
+  collector.accept({ type: 'system', subtype: 'init', session_id: 'owned' })
+  for (let i = 0; i < 1000; i++) collector.accept({ type: 'assistant', session_id: 'owned',
+    message: { content: [{ type: 'text', text: 'x'.repeat(8192) }] } })
+  assert.equal(collector.progressText().length, 65536)
+  collector.accept({ type: 'result', session_id: 'owned', subtype: 'success', is_error: false, result: 'complete final answer' })
+  assert.equal(collector.finish().text, 'complete final answer')
+})
+
+test('retained image output has an independent bound and cannot silently truncate a successful receipt', () => {
+  const collector = createCollector()
+  collector.accept({ type: 'system', subtype: 'init', session_id: 'owned' })
+  const image = { type: 'user', session_id: 'owned', message: { content: [{ type: 'tool_result', tool_use_id: 'image',
+    content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }] }] } }
+  for (let i = 0; i < 1025; i++) collector.accept(image)
+  assert.equal(collector.invalid, true)
+  assert.equal(collector.outputOverflow, true)
+  collector.accept({ type: 'result', session_id: 'owned', subtype: 'success', is_error: false, result: 'cannot erase overflow' })
+  assert.equal(collector.finish().kind, 'failure')
+})
+
+test('activity needs an owned initialized session; unknown events stay forward compatible', () => {
+  const collector = createCollector({ expectedSessionId: 'owned' })
+  const delta = { type: 'stream_event', session_id: 'owned', event: { type: 'content_block_delta' } }
+  assert.equal(collector.owns(delta), false)
+  collector.accept({ type: 'system', subtype: 'init', session_id: 'owned' })
+  assert.equal(collector.owns(delta), true)
+  assert.equal(collector.owns({ ...delta, session_id: undefined }), false)
+  assert.equal(collector.owns({ ...delta, session_id: 'native-child', parent_tool_use_id: 'owned-cli-parent' }), true)
+  collector.accept({ type: 'future_event', session_id: 'unrelated', payload: {} })
+  assert.equal(collector.invalid, false)
+  assert.equal(collector.owns({ type: 'future_event', session_id: 'owned' }), false)
+  collector.accept({ ...delta, session_id: 'foreign-root' })
+  assert.equal(collector.invalid, true)
+  assert.equal(collector.owns(delta), false)
+})

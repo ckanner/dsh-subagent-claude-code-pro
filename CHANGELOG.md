@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2 (source candidate)
+
+- Add public metadata-only `onActivity` with bounded event-driven coalescing across root and child streams. Native task progress remains observable even when the durable state ledger deduplicates unchanged states.
+- Replace the cumulative query-stream byte cutoff with per-frame and retained-output limits; bound intermediate display memory and callbacks without cancelling a long active run. Reject conflicting root-session activity immediately while retaining native child streams and unknown-event compatibility.
+- Probe the local CLI help through owned process supervision before delivering a prompt; require partial messages and foreground subagent forwarding, preserve one wall budget and reject unsupported CLIs without replay or leaked diagnostic text.
+- Forward foreground, PTC and background query activity to the optional Flywheel host extension without fabricating DSH assistant messages or heartbeats.
+- Name fresh persistent machine sessions and interactive teams, with readable workspace-name fallbacks that keep private prompt text out of session lists. Explicit descriptions and session names take precedence; resumes retain their existing name and ephemeral queries remain ephemeral.
+- Preserve native controls, credentials, dispatch ACKs, unknown outcomes, terminal receipts and owned process cleanup. This is an offline-verified source candidate, not an npm publication or real-model acceptance claim.
+
 ## 0.5.1 (unreleased)
 
 ### Fixed

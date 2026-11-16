@@ -36,6 +36,8 @@ The plugin exposes native Agent/Workflow/advisor controls from its **own Configu
 
 From plugin 0.5.1, native Agent definitions can request a separate `model` and `effort` for each child; see [child effort and CLI precedence](docs/native-capabilities.md#per-agent-effort).
 
+From 0.5.2, long-running queries expose bounded activity from root and child streams, including thinking and tool work. The plugin checks required CLI flags before sending a prompt and names fresh persistent machine sessions. See [activity, compatibility and names](docs/machine-api.md#observed-activity-and-cli-compatibility-052).
+
 The separate `subagent_claude_code_native_job` PTC tool starts explicit native Review/interactive Team jobs and provides owned recovery/control. Review always requires `consent:true`; enabling ordinary native capabilities starts no independent job. See [desktop settings, PTC examples, exact native limits and validation](docs/native-capabilities.md) ([中文](docs/native-capabilities.zh.md)).
 
 ## Why this exists
@@ -210,7 +212,7 @@ must be named in `env`.
 
 - A local `claude` CLI that is logged in. The plugin never logs in, refreshes,
   or rewrites credentials. `claude auth status` should say `loggedIn: true`.
-- `claude --version` ≥ 2.1 is assumed; the protocol is the SDK's stream-json
+- Claude Code 2.1.211+ with the required streaming flags is required; the protocol is the SDK's stream-json
   line format and may gain or change capabilities between CLI releases. The
   plugin tolerates unknown events and fails closed on an unreadable result.
 - The DSH desktop app captures its environment at launch. If `claude` is not on
