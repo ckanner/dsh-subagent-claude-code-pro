@@ -3,13 +3,14 @@
 Source base: `f560162d3bca6de8a76072729b0bffb57c543bfa` (0.5.1).
 Independent follow-up review base: `ab9d52b322bd53cc10f45bb3cb03735ed170ef91` (PR #8).
 Ownership follow-up review base: `2d6c549eaeb48f07c481e148d905de789d57dcf5`.
+Current-run ordering follow-up base: `fa8780d87139e68b4de2063afbc64012467f85b4`.
 Candidate: `dsh-subagent-claude-code-pro` 0.5.2. This record does not claim a registry release.
 
 The previous implementation dropped root tool/reasoning/stream activity and deduplicated successive native task-progress notifications. Two supervisors now forward a separate bounded metadata channel. The CLI capability probe runs without a task prompt, through owned process supervision, and shares the request deadline. New persistent queries receive a readable name; resume and ephemeral semantics remain unchanged.
 
 ## Executed checks
 
-- `npm test`: 169 tests passed, zero failed or skipped. Real fixture processes cover root tools, child-only thinking, repeated native progress, 100,000 streamed deltas, more than 64 MiB of raw activity, a genuinely oversized frame, bounded high-volume display, immediate foreign-root rejection, silence without heartbeat, cancellation and group cleanup, callback cessation, durable recovery, CLI capability rejection, capability-probe cancellation/deadline, shared wall budget, fresh/resumed/ephemeral names, and DSH foreground/PTC/background host reporting. Follow-up checks cover ambient task exclusion, resumed task identities, bounded tracking overflow, pre-init startup hook ownership and both timeout/cancel cleanup orderings.
+- `npm test`: 174 tests passed, zero failed or skipped. Real fixture processes cover root tools, child-only thinking, repeated native progress, 100,000 streamed deltas, more than 64 MiB of raw activity, a genuinely oversized frame, bounded high-volume display, immediate foreign-root rejection, silence without heartbeat, cancellation and group cleanup, callback cessation, durable recovery, CLI capability rejection, capability-probe cancellation/deadline, shared wall budget, fresh/resumed/ephemeral names, and DSH foreground/PTC/background host reporting. Follow-up checks cover ambient task exclusion, resumed task identities, bounded tracking overflow, pre-init startup hook ownership and both timeout/cancel cleanup orderings.
 - `npm run test:package`: actual npm pack/install through the public machine export, without optional DSH peers. Validates lifecycle/recovery/resume, native child effort, supervised child activity, readable names and required streaming argv.
 - `npm run test:host`: eight public tool-schema combinations against published DSH dependencies and upstream schema/PTC generation at `39163dd30f703a79079e2d2446545cff3c453738`.
 - `git diff --check`: passed.
@@ -39,6 +40,19 @@ legacy ambient child excluded after a newer ordinary run begins: persistent
 state uses exact run identity, while incoming unversioned progress uses the
 current run. That state/event distinction was also verified with a failing
 regression before its final correction.
+
+The final current-run review found that excluding only previously seen old runs
+still allowed a first-seen late start or background snapshot to move the current
+identity backwards. The official task contract orders one task's run IDs by
+plain-string comparison, while snapshot ordering relative to per-task events is
+otherwise unspecified. Five additional tests failed before the fix and now pass:
+late starts and snapshots preserve both ordinary and ambient current runs, and
+a newer run first observed in a snapshot stays current across an older start
+and its own later start. Existing fixtures that labelled `z-previous` as older
+than `a-current`, or `old-run` as older than `new-run`, were corrected to the
+contract-valid `a-previous` / `z-current` order without weakening their assertions.
+Only current ambient identity selection changed; stored child state still uses
+the exact-run classification described above.
 
 The [official task contract](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage) explicitly excludes ambient work from activity indicators, and the [official hook contract](https://code.claude.com/docs/en/agent-sdk/typescript#sdkhookstartedmessage) describes delivery before startup hooks finish. Provider-originated tool progress remains distinct from any locally generated heartbeat: this adapter still generates none.
 

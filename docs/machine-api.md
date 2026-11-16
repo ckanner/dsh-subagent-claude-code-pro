@@ -123,8 +123,11 @@ own remote work, even when no retained child identifies it. The separate local
 process-group cleanup receipt can still be confirmed. Truncating event history
 alone does not discard otherwise complete ownership evidence.
 Explicit run IDs select their exact recorded run; events without a run ID use
-the current run, including after a legacy unversioned run. A repeated old start
-cannot replace a newer current run. Stored child state still uses its exact run
+the current run, including after a legacy unversioned run. Current run selection
+uses the provider's plain-string ordering of one task's run IDs: an older start
+or snapshot cannot replace a newer run, even when that old run is first observed
+late. A legacy entry without a run ID cannot replace an established versioned
+current run. Stored child state still uses its exact run
 identity, so an old ambient child cannot become pending work again.
 Positive `thinking_tokens` increments also count as observed thinking activity.
 These rules follow the official [task-message contract](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage).

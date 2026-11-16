@@ -169,7 +169,9 @@ ambient 任务不属于本次会话工作。后续 progress 即使省略 `ambien
 独立的本地进程组清理仍可确认为完成；只有事件历史被截断、所有权身份完整时，也保留可信清理。
 明确的 run ID 对应其精确运行；省略 run ID 的事件使用当前运行，即使历史中还有无 run ID
 的旧 ambient 任务。重放旧 start 不能把当前运行回退；持久子任务记录仍按自己的精确运行
-判断归属，旧 ambient 子任务不会重新变成未完成工作。`thinking_tokens` 的正数增量同样
+判断归属，旧 ambient 子任务不会重新变成未完成工作。同一 task 的当前 run 按 Provider
+约定的普通字符串顺序选择，因此首次晚到的旧 start/snapshot 也不能覆盖更新的 run；
+缺少 run ID 的 legacy 条目不能覆盖已经确立的 versioned current。`thinking_tokens` 的正数增量同样
 提供实际思考活动。依据[官方任务消息契约](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage)。
 
 通常由初始化确认的本次根会话提供活动。已知根事件出现冲突 session ID 时立即失败，

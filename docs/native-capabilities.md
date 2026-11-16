@@ -302,8 +302,10 @@ image blocks are in `receipt.images`, preserving the old text-only `output` shap
 ## Child events, usage and recovery
 
 The metadata ledger associates native tool calls, parent_tool_use_id transcripts,
-task IDs, parent task IDs and task run IDs. Native run IDs are opaque and are never
-sorted to decide which run is current. Unversioned completion events cannot end a
+task IDs, parent task IDs and task run IDs. Ambient activity selects the current
+run using the provider's [plain-string run ordering](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage),
+so a first-seen late snapshot cannot replace a newer run. Run IDs are otherwise
+opaque identity values. Unversioned completion events cannot end a
 versioned resumed run. Nested transcripts never become root
 completion or contaminate root session identity. A resumed task with a new run ID
 is a new ledger entry; a late old-run completion cannot end the new run. Progress

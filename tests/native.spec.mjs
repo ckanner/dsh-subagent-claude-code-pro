@@ -144,20 +144,20 @@ test('task run IDs keep late completions separate and snapshots are never increm
   assert.equal(children.find(c => c.turnId === '002').usage.total_tokens, 20)
 })
 
-test('opaque task run IDs use start evidence and unversioned events cannot end the latest run', () => {
+test('task run identities preserve late completions and unversioned events cannot end the latest run', () => {
   const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
   tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
   const base = { type: 'system', session_id: 'root', task_id: 'child', task_type: 'local_agent' }
-  tracker.observe({ ...base, subtype: 'task_started', run_id: 'z-previous' })
-  tracker.observe({ ...base, subtype: 'task_notification', run_id: 'z-previous', status: 'completed' })
-  tracker.observe({ ...base, subtype: 'task_started', run_id: 'a-current' })
-  tracker.observe({ ...base, subtype: 'task_started', run_id: 'z-previous' })
-  tracker.observe({ ...base, subtype: 'task_progress', run_id: 'z-previous' })
+  tracker.observe({ ...base, subtype: 'task_started', run_id: 'a-previous' })
+  tracker.observe({ ...base, subtype: 'task_notification', run_id: 'a-previous', status: 'completed' })
+  tracker.observe({ ...base, subtype: 'task_started', run_id: 'z-current' })
+  tracker.observe({ ...base, subtype: 'task_started', run_id: 'a-previous' })
+  tracker.observe({ ...base, subtype: 'task_progress', run_id: 'a-previous' })
   tracker.observe({ ...base, subtype: 'task_notification', status: 'completed' })
   tracker.observe({ ...base, task_id: 'grandchild', parent_task_id: 'child', subtype: 'task_started', run_id: 'nested' })
   const report = tracker.report()
-  assert.equal(report.children.find(c => c.turnId === 'a-current').state, 'running')
-  assert.equal(report.children.find(c => c.turnId === 'z-previous').state, 'completed')
+  assert.equal(report.children.find(c => c.turnId === 'z-current').state, 'running')
+  assert.equal(report.children.find(c => c.turnId === 'a-previous').state, 'completed')
   assert.equal(report.completion.confirmed, false)
   assert.equal(report.resourceBounds.hard, false)
   assert.deepEqual(report.resourceBounds.agents.exceptions, ['ultracode', 'in-session-fork', 'resumed-agent'])
@@ -200,7 +200,7 @@ test('queued Agent tool calls do not masquerade as active native workers', () =>
 test('ambient identity changes remove non-work tasks from native completion and preserve resumed work', () => {
   const tracker = new NativeTracker({ version: 1, agents: { enabled: true } })
   tracker.observe({ type: 'system', subtype: 'init', session_id: 'root', tools: ['Agent'], agents: [] })
-  const task = { task_id: 'watcher', run_id: 'old-run', task_type: 'local_bash' }
+  const task = { task_id: 'watcher', run_id: 'a-previous', task_type: 'local_bash' }
   const send = event => tracker.observe({ type: 'system', session_id: 'root', ...event })
   send({ subtype: 'task_started', ...task })
   assert.equal(tracker.report().completion.confirmed, false)
@@ -209,10 +209,10 @@ test('ambient identity changes remove non-work tasks from native completion and 
   assert.equal(tracker.report().children.length, 0)
   assert.equal(tracker.report().completion.confirmed, true)
   assert.equal(tracker.acceptsOrigin({ kind: 'task-notification', runId: task.run_id }), false)
-  send({ subtype: 'task_started', ...task, run_id: 'new-run', ambient: false })
+  send({ subtype: 'task_started', ...task, run_id: 'z-current', ambient: false })
   send({ subtype: 'task_notification', ...task, status: 'completed', ambient: true })
   assert.deepEqual(tracker.report().completion.pendingIds, ['watcher'])
-  send({ subtype: 'task_notification', ...task, run_id: 'new-run', status: 'completed' })
+  send({ subtype: 'task_notification', ...task, run_id: 'z-current', status: 'completed' })
   assert.equal(tracker.report().completion.confirmed, true)
 })
 

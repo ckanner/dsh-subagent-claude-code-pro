@@ -143,8 +143,10 @@ env 的有效快照一致，且该 session 空闲。实时设置变化后自动�
 续接，并在本次调用重新发送 argv/settings/env，再验证 init 工具面。回执仍保留不能
 反射确认的字段，不把调用参数当作实际运行证据。
 
-原生账本关联 tool_use、parent_tool_use_id、task id、parent task id 与 opaque run id。
-run id 不按字符串排序；旧 run 的迟到完成不能结束新 run；子 transcript 不能成为根
+原生账本关联 tool_use、parent_tool_use_id、task id、parent task id 与 run id。
+ambient 活动的当前 run 按 Provider [约定的普通字符串顺序](https://code.claude.com/docs/en/agent-sdk/typescript#sdktaskstartedmessage)
+选择，首次出现的迟到旧 snapshot 也不能覆盖新 run；除此之外不解析 run id 的结构。
+旧 run 的迟到完成不能结束新 run；子 transcript 不能成为根
 完成结果。background snapshot、tool_result 与 task 通知按身份对齐，避免重复 child。
 Workflow 后续根结果必须带合法的原生 task-notification provenance。
 

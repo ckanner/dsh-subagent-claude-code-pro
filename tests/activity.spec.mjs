@@ -47,16 +47,16 @@ test('task activity keeps ambient run identities separate and omits task-list sn
   let now = 0
   const events = [], reporter = createActivityReporter(e => events.push(e), 1, { now: () => ++now })
   const observe = event => reporter.observe({ type: 'system', session_id: 'root', ...event })
-  observe({ subtype: 'task_started', task_id: 'watcher', run_id: 'old-run', ambient: true })
-  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'old-run' })
+  observe({ subtype: 'task_started', task_id: 'watcher', run_id: 'a-previous', ambient: true })
+  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'a-previous' })
   observe({ subtype: 'task_progress', task_id: 'watcher' })
   observe({ subtype: 'background_tasks_changed', tasks: [{ task_id: 'second', ambient: true }] })
   observe({ subtype: 'task_progress', task_id: 'second' })
   assert.equal(events.length, 0)
-  observe({ subtype: 'task_started', task_id: 'watcher', run_id: 'new-run', ambient: false })
-  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'new-run' })
-  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'old-run' })
-  observe({ subtype: 'task_notification', task_id: 'watcher', run_id: 'old-run', ambient: true })
+  observe({ subtype: 'task_started', task_id: 'watcher', run_id: 'z-current', ambient: false })
+  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'z-current' })
+  observe({ subtype: 'task_progress', task_id: 'watcher', run_id: 'a-previous' })
+  observe({ subtype: 'task_notification', task_id: 'watcher', run_id: 'a-previous', ambient: true })
   observe({ subtype: 'task_progress', task_id: 'watcher' })
   assert.equal(events.length, 3, 'the resumed ordinary run is not hidden by an old ambient run')
   observe({ subtype: 'thinking_tokens', estimated_tokens_delta: 4 })
@@ -67,13 +67,13 @@ test('task activity keeps ambient run identities separate and omits task-list sn
   assert.equal(events.length, 4, 'a task without identity cannot provide task activity')
 })
 
-for (const previousRun of [undefined, 'old-run']) test(`current task activity survives an older ambient ${previousRun ?? 'unversioned'} identity`, () => {
+for (const previousRun of [undefined, 'a-previous']) test(`current task activity survives an older ambient ${previousRun ?? 'unversioned'} identity`, () => {
   let now = 0
   const events = [], reporter = createActivityReporter(e => events.push(e), 1, { now: () => ++now })
   const observe = event => reporter.observe({ type: 'system', session_id: 'root', task_id: 'reused-task', ...event })
   const old = { subtype: 'task_started', ambient: true, ...(previousRun === undefined ? {} : { run_id: previousRun }) }
   observe(old)
-  observe({ subtype: 'task_started', run_id: 'new-run', ambient: false })
+  observe({ subtype: 'task_started', run_id: 'z-current', ambient: false })
   if (previousRun !== undefined) observe(old)
   for (let n = 1; n <= 3; n++) observe({ subtype: 'task_progress', usage: { total_tokens: n, tool_uses: n, duration_ms: n * 100 } })
   assert.equal(events.length, 4, 'an old ambient identity cannot hide current unversioned progress')
@@ -81,6 +81,39 @@ for (const previousRun of [undefined, 'old-run']) test(`current task activity su
   if (previousRun !== undefined) observe({ subtype: 'task_progress', run_id: previousRun })
   observe({ ...old, subtype: 'task_notification' })
   assert.equal(events.length, 4, 'explicit old ambient identities remain excluded')
+  reporter.close()
+})
+
+for (const subtype of ['task_started', 'background_tasks_changed']) for (const latestAmbient of [false, true]) {
+  test(`first late old ${subtype} cannot replace the current ${latestAmbient ? 'ambient' : 'ordinary'} run`, () => {
+    let now = 0
+    const events = [], reporter = createActivityReporter(e => events.push(e), 1, { now: () => ++now })
+    const observe = event => reporter.observe({ type: 'system', session_id: 'root', ...event })
+    const task_id = 'same-task'
+    observe({ subtype: 'task_started', task_id, run_id: 'z-current', ambient: latestAmbient })
+    const old = { task_id, run_id: 'a-previous', ambient: !latestAmbient }
+    observe(subtype === 'task_started' ? { subtype, ...old } : { subtype, tasks: [old] })
+    const before = events.length
+    observe({ subtype: 'task_progress', task_id, usage: { total_tokens: 1, tool_uses: 1, duration_ms: 100 } })
+    assert.equal(events.length - before, latestAmbient ? 0 : 1, 'current-run activity follows run order, not arrival order')
+    observe({ subtype: 'task_started', task_id, run_id: 'z-current', ambient: latestAmbient })
+    const afterReplay = events.length
+    observe({ subtype: 'task_progress', task_id, usage: { total_tokens: 2, tool_uses: 2, duration_ms: 200 } })
+    assert.equal(events.length - afterReplay, latestAmbient ? 0 : 1, 'a known newer run remains current')
+    reporter.close()
+  })
+}
+
+test('a newer run first seen in a snapshot stays current through a late older start and its own start', () => {
+  let now = 0
+  const events = [], reporter = createActivityReporter(e => events.push(e), 1, { now: () => ++now })
+  const observe = event => reporter.observe({ type: 'system', session_id: 'root', ...event })
+  observe({ subtype: 'background_tasks_changed', tasks: [{ task_id: 'same-task', run_id: 'z-current', ambient: false }] })
+  observe({ subtype: 'task_started', task_id: 'same-task', run_id: 'a-previous', ambient: true })
+  observe({ subtype: 'task_started', task_id: 'same-task', run_id: 'z-current', ambient: false })
+  observe({ subtype: 'task_progress', task_id: 'same-task' })
+  assert.equal(events.length, 2, 'the known current run must not stay hidden behind a first-seen old run')
+  assert.deepEqual(events.at(-1).eventTypes, ['task-progress'])
   reporter.close()
 })
 
