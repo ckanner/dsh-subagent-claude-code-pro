@@ -1,7 +1,7 @@
 # Machine API v1
 
 The `dsh-subagent-claude-code-pro/machine` package export was introduced in the
-0.3.2 machine API and extended by **0.4.0**. It is a public, dependency-free ESM interface for an
+0.3.2 machine API and extended by **0.4.0**. It is a public ESM interface for an
 orchestrator such as Flywheel. Adding this source change does not publish a new
 npm version or upgrade an existing desktop installation.
 
@@ -34,8 +34,20 @@ The complete TypeScript contract is shipped in
 `runMachine`. 0.4.0 also exports `MACHINE_LIFECYCLE_VERSION`,
 `MACHINE_LIFECYCLE_CAPABILITIES`, and `recoverMachine`; see the
 [lifecycle contract](machine-lifecycle.md). Node.js 22.18.0 or newer and macOS/Linux are required. The caller
-must supply an installed, authenticated local Claude Code CLI; this package
-neither bundles Claude nor handles login.
+must supply a compatible local Claude Code executable and authorized authentication.
+From 0.6.0, ordinary calls use the exact official Agent SDK 0.3.326 runtime
+dependency. The machine entry remains independent of optional DSH desktop peers.
+`command` selects the native executable; there is no silent bundled-runtime fallback.
+The SDK may install an optional platform binary as a dependency, but the configured
+local executable is the one used. Authentication remains with the native runtime;
+see [runtime, settings and authentication](../README.md#runtime-settings-and-authentication).
+
+SDK `query()` runs inside the existing guardian with a custom process-spawn hook.
+The adapter still validates complete output frames, root-session identity, native
+exit and process-group disappearance before producing a successful receipt. An
+SDK result or iterator completion alone is not cleanup evidence. Machine protocol,
+lifecycle version and read-only recovery semantics remain unchanged; native
+`system/init` observations continue to use `configuration.source: "cli-init"`.
 
 ## Request and identity
 
@@ -138,14 +150,24 @@ the real CLI offline reproduction and the regression boundaries.
 The query path first runs only `claude --help` through the same owned guardian.
 It sends no task prompt during this probe and requires the advertised
 `--include-partial-messages` and `--forward-subagent-text` flags, plus `--name`
-(or `-n`) when naming a session. The subagent flag requires Claude Code 2.1.211
-or newer; the actual help surface, rather than a guessed version string,
-establishes support. Unsupported flags produce a `not-dispatched` failure;
+(or `-n`) when naming a session. The help surface establishes advertised flag
+support, followed by the separate SDK version check described below.
+Unsupported flags produce a `not-dispatched` failure;
 there is no fallback dispatch or automatic replay. Probe time counts against
 the invocation wall deadline, its output is bounded to 256 KiB, and its text
 is never returned in a receipt. `npm run doctor` checks the required flags.
 See the [official CLI flags](https://code.claude.com/docs/en/cli-reference) and
 [streaming contract](https://code.claude.com/docs/en/headless#stream-responses).
+
+From 0.6.0, those help checks precede official SDK execution. The SDK additionally
+waits for the same process's initialize response to report a stable
+`claude_code_version >= 2.1.325` before yielding task input. This is the adapter's
+minimum validated runtime, not the earliest upstream version of every feature.
+Missing, older and prerelease versions fail closed. Since the process has already
+started, this rejection preserves its real PID/dispatch and independent cleanup
+evidence; the existing receipt contract conservatively reports unknown/possible
+rather than inventing a no-process receipt. `threadReadyBeforeDispatch` remains
+false: SDK initialization is not verified effective task configuration.
 
 The public export advertises `MACHINE_ACTIVITY_VERSION: 1` and
 `MACHINE_ACTIVITY_CAPABILITIES: { version: 1, metadataOnly: true, coalesced: true,

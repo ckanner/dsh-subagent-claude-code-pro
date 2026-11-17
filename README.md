@@ -10,10 +10,10 @@ process-group cleanup. It also provides durable pre-prompt checkpoints and
 pre-prompt configuration handshake. 0.4.0 is now published to npm; the desktop behavior and live-verification
 record below still refer to 0.3.1.
 
-A Claude Code delegation tool for DeepSeek Harness that runs **your local
-`claude` CLI** — no bundled Agent SDK payload, no second Claude Code install —
-and adds the choices the official `@deepseek-ai/dsh-subagent-claude-code`
-provider cannot express:
+A Claude Code delegation tool for DeepSeek Harness. From **0.6.0**, ordinary
+delegations use the official **`@anthropic-ai/claude-agent-sdk@0.3.326`** with
+your configured local `claude` executable. The plugin adds the choices the
+official `@deepseek-ai/dsh-subagent-claude-code` provider cannot express:
 
 - **a model and a thinking level per call** (`--model`, `--effort`);
 - **durable Claude Code sessions that later calls can continue**
@@ -22,6 +22,9 @@ provider cannot express:
 - a per-delegation deadline, caller cancellation, and process-group cleanup;
 - diagnostics in `~/.dsh/claude-code-pro.log`, because a plugin has no log
   surface a session can read.
+
+The 0.6.0 migration is a source candidate. See the [SDK validation record](docs/sdk-migration-validation.md)
+for exact SDK/native versions, independent review and real native history checks.
 
 > **Status:** `0.3.1` is the first fully live-verified release and ships the DSH
 > plugin display metadata (icon, eight locales). Text, model-native image and PDF
@@ -53,11 +56,29 @@ SDK:
   cannot accept follow-up messages or resume at all.
 
 This plugin owns its model-facing tool instead, the same registration path Codex
-Pro uses (`ctx.on('agent/created')` → `agent.ctx.tools.register`), and speaks to
-the local CLI over the public `--print --input-format stream-json
---output-format stream-json` shape. The CLI a person installed and
-authenticated stays authoritative: native settings, hooks, MCP servers, model
-defaults, and login state are exactly the ones they already trust.
+Pro uses (`ctx.on('agent/created')` → `agent.ctx.tools.register`). Ordinary calls
+use the SDK's `query()` and control protocol. The SDK starts the configured
+native executable inside the existing supervised process group; the plugin
+retains session identity, real activity, terminal validation and physical cleanup.
+Native Review and interactive Team remain explicit native CLI operations.
+
+### Runtime, settings and authentication
+
+`command` remains authoritative (`claude` by default, or an explicit absolute
+path). The SDK does not silently switch a missing or incompatible local command
+to its bundled runtime. Installing the SDK may also install its optional native
+platform package; executable selection remains explicit.
+
+`HOME`, `CLAUDE_CONFIG_DIR` and `settingSources` retain their existing meanings.
+The native executable resolves authentication; the plugin does not read or copy
+login credentials. Existing local login availability is a technical property of
+that runtime and environment, not a promise that every subscription is authorized
+for a third-party integration. Anthropic's [Agent SDK documentation](https://code.claude.com/docs/en/agent-sdk/overview)
+directs third-party products to API authentication unless separately approved to
+offer claude.ai login or rate limits. Configure authorized credentials explicitly
+through `env` (or the machine API's `credentialEnv`); ambient credential-shaped
+variables continue to be removed. SDK installation alone does not establish
+authentication or change the selected account.
 
 ## Install
 
@@ -155,7 +176,7 @@ as host paths in that text.
 
 ### Structured output and background runs
 
-`output_schema` becomes the CLI's `--json-schema`: the final answer is JSON, the
+`output_schema` becomes the SDK's `outputFormat` schema: the final answer is JSON, the
 plugin re-validates it against a supported schema subset and fails closed on a
 non-JSON or non-conforming answer. A schema-constrained result stays pure JSON
 (no session marker).
@@ -168,20 +189,18 @@ tools and Codex Pro use.
 
 ### Authentication and the CLI's credential store
 
-The plugin never reads, creates, refreshes, or rewrites credentials — the local
-CLI owns them. Two measured operational notes:
+The plugin never reads, creates, refreshes, or rewrites credentials; the native
+runtime owns authentication. For this third-party SDK integration, configure
+authorized API credentials explicitly, for example `env.ANTHROPIC_API_KEY`.
+Other native authentication arrangements require the applicable authorization;
+using the SDK does not grant subscription eligibility.
 
-- The CLI keeps its OAuth session in the system keychain (macOS) / its config
-  directory. Several CLI processes refreshing the same session concurrently can
-  race; when a refresh fails the CLI may clear the stored tokens and report
-  `OAuth session expired and could not be refreshed`. Run
-  `node scripts/doctor.mjs` and then `claude auth login` when that happens.
-- For unattended or heavily repeated use, prefer a static child credential:
-  `claude setup-token` produces a long-lived token; pass it through the plugin's
-  `env` as `CLAUDE_CODE_OAUTH_TOKEN` (or use `ANTHROPIC_API_KEY`) so the child
-  does not depend on keychain refresh.
-
-The doctor prints token lengths only, never values.
+Run `node scripts/doctor.mjs` to check the selected executable's `auth status`.
+Doctor reports only whether native authentication is available, without reading
+keychain contents or printing tokens, token lengths, or the raw auth response.
+Its guidance identifies the failing prerequisite instead of always requesting
+a new login. The [earlier live verification record](docs/live-verification.md)
+preserves historical CLI credential-refresh observations.
 
 ### Permissions
 
@@ -220,17 +239,20 @@ must be named in `env`.
 
 ## Requirements and caveats
 
-- A local `claude` CLI that is logged in. The plugin never logs in, refreshes,
-  or rewrites credentials. `claude auth status` should say `loggedIn: true`.
-- Claude Code 2.1.211+ with the required streaming flags is required; the protocol is the SDK's stream-json
-  line format and may gain or change capabilities between CLI releases. The
-  plugin tolerates unknown events and fails closed on an unreadable result.
+- A local `claude` executable with authorized authentication available to its
+  environment. The plugin does not perform login or manage credential refresh.
+- The local runtime must be stable Claude Code **2.1.325 or newer**, the minimum
+  validated version for SDK 0.3.326. The SDK checks its actual initialize response
+  before releasing task input. The pinned SDK and runtime must support the query initialization,
+  permission and streaming options in use. The plugin checks required CLI flags
+  before the task and validates the resulting stream; an unreadable result or
+  incompatible runtime fails the call. A version label alone is not admission.
 - The DSH desktop app captures its environment at launch. If `claude` is not on
   that PATH, set `command` to an absolute path.
 - The child runs with the CLI's native settings, hooks, MCP servers, plugins and
   skills. It is not a sandbox: the permission mode is the boundary.
-- PDF/image input and `--json-schema` assume a CLI that supports those flags
-  (Claude Code 2.1+). An unsupported flag fails the run with the CLI's message.
+- PDF/image input and SDK structured output require compatible native support.
+  Initialization or output validation failures do not silently discard them.
 - Concurrent delegations spawn concurrent CLI processes. That is fine for most
   work, but the CLI's own credential refresh is shared state; heavy parallelism
   is the CLI's constraint, not something this plugin manages.
@@ -245,11 +267,12 @@ A local CLI check that sends no model request:
 node scripts/doctor.mjs
 ```
 
-It reports the executable/version, `claude auth status`, the CLI flags this
-plugin drives, and (on macOS) whether the Claude Code keychain item actually
-holds tokens — lengths and expiry only, never the values. Exit code is non-zero
-when something must be fixed. A failing doctor is the first thing to run when a
-delegation returns `category: auth`.
+It checks the exact installed Agent SDK and its public query import, the native
+executable/version, `claude auth status` and required CLI flags. It supports native
+API authentication without requiring subscription tokens and never opens the
+keychain or credential files. Exit code is non-zero when a prerequisite fails.
+These are static checks; every real query still verifies its own initialize
+response before task input. Authentication status is not a paid model test.
 
 ## Diagnostics
 

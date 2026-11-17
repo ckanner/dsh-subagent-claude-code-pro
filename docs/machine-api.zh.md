@@ -1,7 +1,7 @@
 # Machine API v1
 
 `dsh-subagent-claude-code-pro/machine` 从 **0.3.2 源码候选**开始提供，是供
-Flywheel 等调度器使用的公开 ESM 接口，不增加运行时依赖。源码更新不代表已发布
+Flywheel 等调度器使用的公开 ESM 接口。源码更新不代表已发布
 npm 新版本，也不会升级用户已有桌面安装。
 
 ```js
@@ -31,7 +31,16 @@ if (receipt.ok && receipt.session.resumable) {
 `MACHINE_PROTOCOL_VERSION`、`MachineInputError`、`parseMachineRequest`、
 `runMachine`；0.4.0 源码候选还提供 `MACHINE_LIFECYCLE_VERSION`、
 `MACHINE_LIFECYCLE_CAPABILITIES` 与 `recoverMachine`。详见[生命周期协议](machine-lifecycle.zh.md)。需要 macOS/Linux 与 Node.js 22.18.0 或以上，以及用户已安装、
-已登录的本地 Claude Code CLI；接口不捆绑 Claude，也不负责登录。
+兼容的本地 Claude Code 可执行文件及获准使用的认证。0.6.0 起，普通调用使用固定的
+官方 Agent SDK 0.3.326 运行时依赖；machine 入口仍独立于可选 DSH 桌面依赖。
+`command` 决定原生程序，不静默回退到 SDK 自带程序。安装 SDK 可能同时安装其可选
+平台程序包，实际运行仍使用配置指定的本地程序。认证由原生程序处理，详见
+[程序、配置与认证](../README.zh.md#程序配置与认证)。
+
+SDK `query()` 在既有 guardian 内运行，通过自定义进程启动接口保留所有权。适配器
+仍检查完整输出帧、主会话身份、原生退出与进程组消失，之后才产生成功回执；SDK
+result 或迭代结束本身不是清理证据。machine protocol、lifecycle version 与只读恢复
+语义保持不变，原生 `system/init` 观察继续使用 `configuration.source: "cli-init"`。
 
 ## 请求与会话身份
 
@@ -192,11 +201,18 @@ npm test 通过真实派生的本地 fixture 进程验证普通调用、续接�
 
 查询前先通过同一 guardian 执行只读 `claude --help`，不发送任务 prompt。必须实际宣告
 `--include-partial-messages`、`--forward-subagent-text`，命名时还需 `--name` 或 `-n`。
-子代理转发 flag 要求 Claude Code 2.1.211 或以上；以真实 help 能力而不是猜测版本号作准入。
+help 用于核对实际宣告的 flag 能力，随后还须通过下述独立的 SDK 版本检查。
 缺少能力返回 `not-dispatched`，不降级执行、不自动重试。探测时间计入同一次 wall deadline，
 help 最多读取 256 KiB，原文不会进入回执；`npm run doctor` 同样检查这些 flags。
 参考[官方 CLI 参数](https://code.claude.com/docs/en/cli-reference)与
 [流式契约](https://code.claude.com/docs/en/headless#stream-responses)。
+
+0.6.0 起，help 检查后进入官方 SDK。SDK 还会等待同一进程的 initialize 响应，核对
+稳定的 `claude_code_version >= 2.1.325`，之后才 yield 任务输入。这是适配器最低
+已验证版本，不是每项上游功能首次出现的版本。缺失、过旧或预发布版本失败关闭。
+此时原生进程已启动，拒绝回执保留真实 PID／dispatch 与独立清理证据；现有契约
+保守记录 unknown／possible，不伪造从未启动进程。`threadReadyBeforeDispatch`
+保持 false：SDK 初始化不等于已核验任务的实际配置。
 
 公共接口新增 `MACHINE_ACTIVITY_VERSION: 1`，以及
 `MACHINE_ACTIVITY_CAPABILITIES: { version: 1, metadataOnly: true, coalesced: true, rootAndChildren: true }`。

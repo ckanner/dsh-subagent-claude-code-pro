@@ -1,7 +1,7 @@
 {
   "name": "dsh-subagent-claude-code-pro",
-  "version": "0.5.3",
-  "description": "DeepSeek Harness plugin: Claude Code delegation using your local CLI — per-call model and effort, durable sessions, and multimodal input/output.",
+  "version": "0.6.0",
+  "description": "DeepSeek Harness plugin: official Claude Agent SDK with your local runtime — per-call model and effort, durable sessions, and multimodal input/output.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -72,8 +72,8 @@
   },
   "icon": "./icon.svg",
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "^3.19.0",
-    "@deepseek-ai/dsh-home-paths": "^0.2.2-rc.3"
+    "@deepseek-ai/dsh-home-paths": "^0.2.2-rc.3",
+    "@deepseek-ai/schemastery": "^3.19.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/schemastery": {
@@ -84,11 +84,14 @@
     }
   },
   "devDependencies": {
-    "@deepseek-ai/schemastery": "3.19.0",
     "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
-    "react": "18.3.1",
-    "react-test-renderer": "18.3.1",
+    "@deepseek-ai/dsh-tool-executor-ptc": "0.2.2-rc.3",
     "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-tool-executor-ptc": "0.2.2-rc.3"
+    "@deepseek-ai/schemastery": "3.19.0",
+    "react": "18.3.1",
+    "react-test-renderer": "18.3.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.326"
   }
 }
