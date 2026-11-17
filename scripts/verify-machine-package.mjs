@@ -49,6 +49,8 @@ try {
     + 'if (!receipt.ok || JSON.stringify(recovered.receipt) !== JSON.stringify(receipt)) throw new Error("installed lifecycle mismatch");\n'
     + 'const resumed = await runMachine({ ...request, requestId: "packed-resume", sessionId: receipt.session.id });\n'
     + 'if (!resumed.ok || !resumed.session.resumed) throw new Error("installed resume mismatch");\n'
+    + 'for (const sessionId of [undefined, receipt.session.id]) { const rejected = await runMachine({...request, sessionId}, {env:{...process.env,CLAUDE_CODE_SKIP_PROMPT_HISTORY:"1"}}); if (rejected.ok || rejected.failure?.category !== "invalid-request" || rejected.execution.dispatch !== "not-dispatched" || !rejected.cleanup.confirmed || rejected.session.resumable) throw new Error("installed persistence guard mismatch"); }\n'
+    + 'const ephemeral = await runMachine({...request, sessionMode:"ephemeral"}, {env:{...process.env,CLAUDE_CODE_SKIP_PROMPT_HISTORY:"1"}}); if (!ephemeral.ok || ephemeral.session.resumable) throw new Error("installed explicit ephemeral mismatch");\n'
     + 'if (MACHINE_ACTIVITY_VERSION !== 1 || !MACHINE_ACTIVITY_CAPABILITIES.metadataOnly || !MACHINE_ACTIVITY_CAPABILITIES.rootAndChildren) throw new Error("activity exports missing");\n'
     + 'const activity = []; const active = await runMachine({...request, requestId:"packed-activity", sessionName:"Packed activity"}, {env:{...process.env,FAKE_CLAUDE_MODE:"activity-child",FAKE_CLAUDE_LOG:' + JSON.stringify(activityLog) + '},recoveryDirectory:' + JSON.stringify(join(temp, 'activity-journal')) + ',onLifecycle:()=>{},activityIntervalMs:50,onActivity:e=>activity.push(e)});\n'
     + 'if (!active.ok || activity.filter(e=>e.scope==="child").length<3 || JSON.stringify(activity).includes("private-reasoning")) throw new Error("installed activity mismatch");\n'
@@ -66,5 +68,5 @@ try {
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   process.stdout.write(JSON.stringify({ ok: true, version: manifest.version, actualNpmInstall: true,
     publicMachineAPI: true, machineSupervisor: true, durableLifecycle: true, readOnlyRecovery: true, explicitResume: true,
-    nativeChildEffort: true, observedActivity: true, namedSession: true, inferenceRequests: 0 }) + '\n')
+    nativeChildEffort: true, observedActivity: true, namedSession: true, persistenceGuard: true, inferenceRequests: 0 }) + '\n')
 } finally { rmSync(temp, { recursive: true, force: true }) }

@@ -61,6 +61,56 @@ if (receipt.ok && receipt.session.resumable) {
 `settingSources` 默认 `user/project/local`；显式空数组会传递
 `--setting-sources ''`，不会意外恢复默认设置。
 
+## 原生 CLI 与 Desktop 历史
+
+历史持久化、客户端发现和允许继续操作是三个独立事实。persistent query 使用已安装
+Claude CLI 在当前配置目录内保存的原生历史。插件保留 `CLAUDE_CONFIG_DIR`，不复制
+会话文件、不修改原生会话类型，也不登记第二份对话。之后打开历史时需要使用同一
+操作系统用户和配置目录；另一台机器或另一个 profile 不会自动共享这份历史。
+
+从 0.5.3 起，若传给 CLI 的 `CLAUDE_CODE_SKIP_PROMPT_HISTORY` 启用了原生历史
+禁用设置，新建 persistent、resume 和交互式 team 都会在任何 CLI 能力探测或任务
+派发前返回 `invalid-request`，并确认 `not-started` 清理。判断遵循原生布尔解析：
+`1`、`true`、`yes`、`on` 启用，忽略大小写和首尾空白；`0`、`false`、`no`、`off`
+及其他值不启用。插件不会擅自清除或覆盖该偏好。需要持久历史时应取消该设置，
+或显式选择 ephemeral；ephemeral 调用仍然可用，并保留原环境。本检查覆盖适配器
+实际转发的环境，本身不证明历史已经落盘，也不证明客户端已经发现会话。
+
+[官方会话文档](https://code.claude.com/docs/en/sessions#where-the-session-picker-looks)
+说明，`claude -p` 与 Agent SDK 创建的会话不会出现在普通 `/resume` 选择器及
+`claude --continue` 中。本插件的 machine 和委派 query 使用 print 模式。可读名称
+有助于识别已经打开的会话，但不会改变这个原生筛选规则。应使用回执中根会话的精确
+UUID 打开：
+
+```sh
+cd /absolute/project
+claude --resume 11111111-1111-4111-8111-111111111111
+```
+
+Desktop 有自己的会话列表。在支持该能力的安装上，使用
+[官方 CLI 接管入口](https://code.claude.com/docs/en/desktop#coming-from-the-cli)
+可以带着原始历史打开保存的对话：
+
+```sh
+cd /absolute/project
+claude --desktop --resume 11111111-1111-4111-8111-111111111111
+```
+
+把示例 UUID 换成回执中的 `session.id`；原调用若使用了自定义 `CLAUDE_CONFIG_DIR`，
+两个命令都应保持同一设置。Desktop 命令要求 Claude Code 2.1.285 或以上、macOS 或
+x64 Windows、已安装 Claude Desktop，并使用 Claude 订阅登录。需要在交互终端中运行，
+不添加 `-p`、prompt、管道输入或输出重定向。它会打开应用，不是 machine query，
+也不是后台注册操作。旧 CLI 可以先按精确 ID 在终端恢复，再使用该版本支持的
+`/desktop` 命令；仍需满足原生应用相应的版本、平台和登录要求。
+
+人工继续前，应确认清理完成，并在调度器中暂停或接管该会话。仅有已保存的 UUID
+不能允许并发写入，也不能解除结果未知的调用阻断。ephemeral 调用没有保存历史；
+原生子任务 ID 属于父级执行，不能作为独立可恢复的根会话展示。上述命令描述的是
+Provider 支持的接管方式，不代表已经完成真实桌面 UI 验收。
+
+真实 CLI 的离线复现与回归边界见
+[0.5.3 历史验证记录（英文）](session-visibility-validation.md)。
+
 ## 配置证据
 
 `requested` 记录请求给 CLI 的参数，`configuration.observed` 只记录

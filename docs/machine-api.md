@@ -73,6 +73,66 @@ Raw ultrareview JSON remains limited to 64 MiB and capability help to 256 KiB.
 `settingSources` defaults to `user`, `project`, `local`;
 an explicit empty array is forwarded as `--setting-sources ''`.
 
+## Native CLI and Desktop history
+
+Persistence, discovery and permission to continue are separate facts. A persistent
+query uses the installed Claude CLI's own history in its active configuration
+directory. The plugin preserves `CLAUDE_CONFIG_DIR` and does not copy transcripts,
+change their native session type, or register a second conversation. Use the same
+OS user and configuration directory when opening that history later; another
+machine or profile does not automatically share it.
+
+From 0.5.3, persistent creation, resume and interactive teams reject a forwarded
+`CLAUDE_CODE_SKIP_PROMPT_HISTORY` that enables Claude's native history opt-out.
+The failure is `invalid-request`, before any CLI capability probe or task
+dispatch, with confirmed `not-started` cleanup. The plugin follows the native
+boolean parser: `1`, `true`, `yes` and `on` enable the setting, ignoring case and
+surrounding whitespace; `0`, `false`, `no`, `off` and other values do not. It
+does not clear or override this preference. Unset the setting to request durable
+history, or explicitly choose ephemeral mode; ephemeral calls remain permitted
+and keep the original environment. This check covers the environment forwarded
+by the adapter, and does not attest history storage or client discovery by itself.
+
+The [official session guide](https://code.claude.com/docs/en/sessions#where-the-session-picker-looks)
+excludes `claude -p` and Agent SDK sessions from the ordinary `/resume` picker and
+`claude --continue`. This plugin's machine and delegation queries use print mode.
+A readable name helps identify an opened session, but does not remove that native
+filter. Open the exact root session UUID returned in the receipt:
+
+```sh
+cd /absolute/project
+claude --resume 11111111-1111-4111-8111-111111111111
+```
+
+Desktop keeps its own session list. On a supported installation, its
+[documented CLI handoff](https://code.claude.com/docs/en/desktop#coming-from-the-cli)
+opens the saved conversation with its original history:
+
+```sh
+cd /absolute/project
+claude --desktop --resume 11111111-1111-4111-8111-111111111111
+```
+
+Replace the example UUID with the receipt's `session.id`; if the original run used
+a custom `CLAUDE_CONFIG_DIR`, keep that setting for either command. The Desktop
+command requires Claude Code 2.1.285 or newer, macOS or x64 Windows, an installed
+Claude Desktop app, and a Claude subscription sign-in. Run it in an interactive
+terminal, without `-p`, a prompt, piped input or redirected output. It opens the
+application; it is not a machine query or a background registration operation.
+On an older CLI, use explicit-ID CLI resume and the supported `/desktop` command
+from that interactive session. The native app may still require its own version,
+platform and sign-in prerequisites.
+
+Wait for confirmed cleanup and pause or take over the session in the orchestrator
+before continuing it manually. A saved UUID alone does not permit concurrent
+writers or resolve an unknown invocation. Ephemeral calls have no saved history;
+native child task identifiers refer to their parent's execution and must not be
+presented as independently resumable root sessions. These commands describe the
+provider's supported handoff, not a claim that a desktop UI acceptance test ran.
+
+See the [0.5.3 history validation record](session-visibility-validation.md) for
+the real CLI offline reproduction and the regression boundaries.
+
 ## Observed activity and CLI compatibility (0.5.2)
 
 The query path first runs only `claude --help` through the same owned guardian.
