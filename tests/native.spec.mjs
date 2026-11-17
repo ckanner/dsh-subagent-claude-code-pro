@@ -7,6 +7,7 @@ import { makeFakeCommand, makeTempDir } from './helpers.mjs'
 import { runMachine, parseMachineRequest, validateNativeReviewRequest, validateInteractiveTeamRequest, runNativeReview, runInteractiveTeam, recoverNativeJob, controlInteractiveTeam } from 'dsh-subagent-claude-code-pro/machine'
 import { NativeTracker, nativeControls } from '../lib/native.js'
 import { createCollector } from '../lib/protocol.js'
+import { argumentValue } from './sdk-assertions.mjs'
 
 function fixture(mode = 'normal') {
   const cwd = makeTempDir('cc-native-'), log = join(cwd, 'calls')
@@ -76,11 +77,9 @@ test('machine forwards every native agent effort without changing root effort or
     assert.equal(receipt.native.effective.verification, 'tools-only')
     assert.ok(receipt.native.effective.config.unverified.includes('child effort'))
     const call = JSON.parse(readFileSync(f.log, 'utf8').trim())
-    assert.equal(call.args[call.args.indexOf('--model') + 1], 'opus')
-    const rootEffort = call.args.indexOf('--effort')
-    if (effort === undefined) assert.equal(rootEffort, -1)
-    else assert.equal(call.args[rootEffort + 1], effort)
-    const forwarded = JSON.parse(call.args[call.args.indexOf('--agents') + 1])
+    assert.equal(argumentValue(call.args, '--model'), 'opus')
+    assert.equal(argumentValue(call.args, '--effort'), effort)
+    const forwarded = call.initialize.agents
     assert.deepEqual(forwarded, definitions)
     assert.equal(Object.hasOwn(forwarded.inherited, 'effort'), false)
     assert.equal(Object.hasOwn(receipt.native.requested.agents.definitions.inherited, 'effort'), false)
@@ -111,7 +110,7 @@ test('Agent/Workflow/advisor controls reach the CLI without changing credentials
   assert.equal(call.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS, '5')
   assert.equal(call.env.CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS, '6')
   assert.equal(call.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH, '2')
-  assert.equal(call.args[call.args.indexOf('--advisor') + 1], 'opus')
+  assert.equal(argumentValue(call.args, '--advisor'), 'opus')
 })
 
 test('native off cannot silently become enabled and a remote launch is not local cleanup', async () => {
@@ -354,7 +353,8 @@ test('machine media, schema and budget use the native wire and validate the resu
   assert.deepEqual(receipt.structured, { answer: 42 })
   const call = JSON.parse(readFileSync(f.log, 'utf8').trim())
   assert.equal(call.userContent[1].type, 'image')
-  assert.equal(call.args[call.args.indexOf('--max-budget-usd') + 1], '2')
+  assert.equal(argumentValue(call.args, '--max-budget-usd'), '2')
+  assert.deepEqual(call.initialize.jsonSchema, { type: 'object', required: ['answer'], properties: { answer: { type: 'integer' } }, additionalProperties: false })
   const bad = fixture('bad-structured')
   const invalid = await runMachine({ ...bad.request, outputSchema: { type: 'object', required: ['answer'] } }, bad.runtime)
   assert.equal(invalid.ok, false)

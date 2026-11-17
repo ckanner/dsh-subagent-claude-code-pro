@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 import { MACHINE_PROTOCOL_VERSION, MachineInputError, parseMachineRequest, runMachine } from 'dsh-subagent-claude-code-pro/machine'
 import { makeFakeCommand, makeTempDir } from './helpers.mjs'
+import { argumentValue } from './sdk-assertions.mjs'
 
 const UUID = '22222222-2222-4222-8222-222222222222'
 function fixture(mode = 'normal') {
@@ -67,7 +68,7 @@ test('cwd canonicalization and no-setting-source requests reach the CLI exactly'
   assert.equal(receipt.configuration.observed.cwd, receipt.requested.cwd)
   assert.deepEqual(receipt.requested.settingSources, [])
   const args = f.calls()[0].args
-  assert.equal(args[args.indexOf('--setting-sources') + 1], '')
+  assert.equal(argumentValue(args, '--setting-sources'), '')
   absentProcessGroup(receipt)
 })
 
@@ -95,7 +96,7 @@ test('persistent completion provides observed configuration, per-invocation usag
   assert.equal(resumed.usage.totalTokens, 22)
   assert.equal(resumed.usage.cacheReadTokens, 7)
   assert.equal(f.calls().length, 2)
-  assert.ok(f.calls()[1].args.includes('--resume'))
+  assert.equal(argumentValue(f.calls()[1].args, '--resume'), first.session.id)
   absentProcessGroup(first)
   absentProcessGroup(resumed)
 })
@@ -259,7 +260,7 @@ test('effort and progress pass through the public API without implying an unobse
   assert.equal(result.configuration.observed.effort, undefined)
   assert.ok(progress.length > 0)
   const args = f.calls()[0].args
-  assert.equal(args[args.indexOf('--effort') + 1], 'xhigh')
+  assert.equal(argumentValue(args, '--effort'), 'xhigh')
 })
 
 test('bounded terminal output fails closed but preserves separately attributable consumption', async () => {

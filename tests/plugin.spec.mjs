@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 import { apply } from '../lib/index.js'
 import { makeAgent, makeContext, makeFakeCommand, makeTempDir } from './helpers.mjs'
+import { argumentValue } from './sdk-assertions.mjs'
 
 process.env.DSH_HOME = makeTempDir('ccpro-home-plugin-')
 
@@ -93,7 +94,7 @@ test('ephemeral runs write nothing resumable', async () => {
   assert.doesNotMatch(text, /claude-code session/)
   const runs = spawnLog(log)
   assert.ok(runs.at(-1).args.includes('--no-session-persistence'))
-  assert.ok(!runs.at(-1).args.includes('--session-id'))
+  assert.equal(argumentValue(runs.at(-1).args, '--session-id'), undefined)
 })
 
 test('persistent configured calls create independent sessions unless a resume id is explicit', async () => {
@@ -102,7 +103,7 @@ test('persistent configured calls create independent sessions unless a resume id
   const second = textOf(await execute(tools[0], { prompt: 'second task' }))
   assert.notEqual(sessionIdOf(first), sessionIdOf(second))
   assert.doesNotMatch(second, /prior:first task/)
-  assert.equal(spawnLog(log).filter(run => run.args.includes('--resume')).length, 0)
+  assert.equal(spawnLog(log).filter(run => argumentValue(run.args, '--resume') !== undefined).length, 0)
 })
 
 test('an explicit per-call persistent mode overrides implicit conversation reuse', async () => {
@@ -121,16 +122,45 @@ test('an explicit session id continues that session and is forwarded as --resume
   const second = textOf(await execute(tools[0], { prompt: 'next', session_id: id }))
   assert.match(second, /prior:remember alpha/)
   const runs = spawnLog(log)
-  assert.ok(runs.at(-1).args.includes('--resume'))
-  assert.ok(runs.at(-1).args.includes(id))
+  assert.equal(argumentValue(runs.at(-1).args, '--resume'), id)
+})
+
+test('forking native history inherits context and isolates later writes from the original session', async () => {
+  const { tools, log, state } = setup({ sessionMode: 'persistent' })
+  const original = textOf(await execute(tools[0], { prompt: 'original context' }))
+  const originalId = sessionIdOf(original)
+  assert.ok(originalId)
+
+  const fork = textOf(await execute(tools[0], { prompt: 'fork-only change', session_id: originalId, fork_session: true }))
+  const forkId = sessionIdOf(fork)
+  assert.ok(forkId)
+  assert.notEqual(forkId, originalId)
+  assert.match(fork, /prior:original context\|echo:fork-only change/)
+  const forkCall = spawnLog(log).at(-1)
+  assert.equal(argumentValue(forkCall.args, '--resume'), originalId)
+  assert.ok(forkCall.args.includes('--fork-session'))
+  assert.equal(Object.hasOwn(forkCall.initialize, 'title'), false, 'a fork must not rename the original history')
+  assert.equal(JSON.parse(readFileSync(join(state, `${originalId}.json`), 'utf8')).prompt, 'original context')
+  assert.equal(JSON.parse(readFileSync(join(state, `${forkId}.json`), 'utf8')).prompt, 'fork-only change')
+
+  const continued = textOf(await execute(tools[0], { prompt: 'original followup', session_id: originalId }))
+  assert.equal(sessionIdOf(continued), originalId)
+  assert.match(continued, /prior:original context\|echo:original followup/)
+  assert.doesNotMatch(continued, /fork-only change/)
 })
 
 test('model and effort are forwarded per call', async () => {
   const { tools, log } = setup()
   await execute(tools[0], { model: 'haiku', reasoning_effort: 'low' })
   const run = spawnLog(log).at(-1)
-  assert.deepEqual(run.args.slice(run.args.indexOf('--model'), run.args.indexOf('--model') + 2), ['--model', 'haiku'])
-  assert.deepEqual(run.args.slice(run.args.indexOf('--effort'), run.args.indexOf('--effort') + 2), ['--effort', 'low'])
+  assert.equal(argumentValue(run.args, '--model'), 'haiku')
+  assert.equal(argumentValue(run.args, '--effort'), 'low')
+  assert.equal(argumentValue(run.args, '--permission-prompts'), 'none')
+  assert.equal(argumentValue(run.args, '--tools'), 'default')
+  assert.equal(argumentValue(run.args, '--setting-sources'), 'user,project,local')
+  assert.equal(run.initialize.title, 'DSH · probe')
+  assert.equal(run.initialize.forwardSubagentText, true)
+  assert.equal(Object.hasOwn(run.initialize, 'systemPrompt'), false, 'the native preset must not become the SDK default empty system prompt')
 })
 
 test('a call may not widen the configured permission mode', async () => {
@@ -164,8 +194,8 @@ test('a stale remembered session is repaired by starting a fresh one', async () 
   assert.match(second, /echo:second/)
   const runs = spawnLog(log)
   assert.equal(runs.length, 3)
-  assert.ok(runs[1].args.includes('--resume'))
-  assert.ok(!runs[2].args.includes('--resume'))
+  assert.equal(argumentValue(runs[1].args, '--resume'), firstId)
+  assert.equal(argumentValue(runs[2].args, '--resume'), undefined)
 })
 
 test('a delegation deadline cancels the run and is reported', async () => {

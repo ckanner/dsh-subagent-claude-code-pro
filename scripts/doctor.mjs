@@ -1,10 +1,7 @@
 /**
- * Local Claude Code CLI doctor.
- *
- * Checks the things this plugin depends on without sending a model request:
- * the executable, the CLI version, the login state, the flags the plugin drives,
- * and (on macOS) whether the Claude Code keychain item actually holds tokens.
- * Token values are never printed — only lengths and expiry.
+ * Check the installed SDK and configured native Claude CLI without a model call.
+ * Authentication is reported only by `claude auth status`; this script never
+ * reads credential files or keychain contents, and never changes login state.
  *
  * Usage:
  *   node scripts/doctor.mjs
@@ -12,103 +9,100 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 
 const command = process.env.CLAUDE_PRO_COMMAND ?? 'claude'
-
-/** @type {string[]} */
+const SDK_NAME = '@anthropic-ai/claude-agent-sdk'
+// Keep this static advisory aligned with the actual initialize gate in sdk-run.js.
+const MINIMUM_CLI = [2, 1, 325]
 const problems = []
+const nextSteps = new Set()
 
-function report(ok, label, detail = '') {
+function report(ok, label, detail = '', nextStep) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail === '' ? '' : `  ${detail}`}`)
-  if (!ok) problems.push(label)
+  if (!ok) {
+    problems.push(label)
+    if (nextStep) nextSteps.add(nextStep)
+  }
 }
 
-function run(args, timeout = 20_000) {
-  const result = spawnSync(command, args, { encoding: 'utf8', timeout })
-  return {
-    status: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    error: result.error,
+function run(args) {
+  return spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 20_000, maxBuffer: 1024 * 1024 })
+}
+
+function versionParts(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?: \(Claude Code\))?$/.exec(value)
+  const parts = match?.slice(1).map(Number)
+  return parts?.every(Number.isSafeInteger) ? parts : undefined
+}
+
+function meetsMinimum(parts) {
+  if (!parts) return false
+  for (let index = 0; index < MINIMUM_CLI.length; index++) {
+    if (parts[index] !== MINIMUM_CLI[index]) return parts[index] > MINIMUM_CLI[index]
   }
+  return true
+}
+
+let sdkVersion
+try {
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  sdkVersion = manifest.dependencies?.[SDK_NAME]
+  if (typeof sdkVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(sdkVersion)) throw new Error('missing exact dependency')
+  // The pinned SDK exports its entry module but not package.json. Resolve that
+  // actual entry, then verify the adjacent manifest before importing its API.
+  const entry = import.meta.resolve(SDK_NAME)
+  const installed = JSON.parse(await readFile(new URL('./package.json', entry), 'utf8'))
+  if (installed.name !== SDK_NAME || installed.version !== sdkVersion) throw new Error('dependency mismatch')
+  const sdk = await import(SDK_NAME)
+  if (typeof sdk.query !== 'function') throw new Error('query API is unavailable')
+  report(true, 'official Agent SDK', `${SDK_NAME}@${sdkVersion}; exact dependency and query import verified`)
+} catch {
+  report(false, 'official Agent SDK', `missing, incompatible, or not importable; expected ${SDK_NAME}@${sdkVersion ?? 'the exact package dependency'}`,
+    'Reinstall this plugin and its pinned dependencies; the doctor does not download or substitute an SDK.')
 }
 
 const version = run(['--version'])
-const versionText = (version.stdout + version.stderr).trim().split('\n')[0] ?? ''
-report(version.status === 0 && versionText !== '', 'claude executable', versionText || String(version.error ?? 'not found'))
+const versionText = (version.stdout ?? '').trim()
+const parts = versionParts(versionText)
+report(version.status === 0 && !version.error && parts !== undefined, 'claude executable',
+  parts === undefined ? 'configured command did not report a stable Claude Code version' : parts.join('.'),
+  'Check CLAUDE_PRO_COMMAND (or the plugin command setting) points to the intended native Claude executable.')
+report(version.status === 0 && !version.error && meetsMinimum(parts), 'SDK runtime version',
+  `requires stable Claude Code >= ${MINIMUM_CLI.join('.')} (--version check)`,
+  `Upgrade that configured Claude executable to stable ${MINIMUM_CLI.join('.')} or newer.`)
 
 const auth = run(['auth', 'status'])
 let authJson
-try {
-  authJson = JSON.parse(auth.stdout)
-} catch {
-  authJson = undefined
-}
-if (authJson === undefined) {
-  report(false, 'claude auth status', (auth.stdout + auth.stderr).trim().slice(0, 200) || 'did not return JSON')
-} else {
-  report(
-    authJson.loggedIn === true,
-    'claude login',
-    `loggedIn=${String(authJson.loggedIn)} authMethod=${String(authJson.authMethod)} apiProvider=${String(authJson.apiProvider)}`,
-  )
-}
+try { authJson = JSON.parse(auth.stdout ?? '') } catch { /* Report only native status, never raw credential-bearing diagnostics. */ }
+const authenticated = auth.status === 0 && !auth.error && authJson !== null && typeof authJson === 'object'
+  && !Array.isArray(authJson) && authJson.loggedIn === true
+report(authenticated, 'native authentication', authenticated
+  ? 'loggedIn=true according to the configured CLI; no credential contents inspected'
+  : 'the configured CLI did not confirm authenticated status',
+  'Check the configured CLI\'s auth status and follow the native authentication setup for your selected provider/account.')
 
 const help = run(['--help'])
-const helpText = help.stdout + help.stderr
+const helpText = (help.stdout ?? '') + (help.stderr ?? '')
 const requiredFlags = [
-  '--input-format',
-  '--output-format',
-  '--include-partial-messages',
-  '--forward-subagent-text',
-  '--name',
-  '--session-id',
-  '--resume',
-  '--fork-session',
-  '--no-session-persistence',
-  '--permission-mode',
-  '--permission-prompts',
-  '--model',
-  '--effort',
-  '--json-schema',
-  '--setting-sources',
+  '--input-format', '--output-format', '--include-partial-messages', '--forward-subagent-text',
+  '--name', '--session-id', '--resume', '--fork-session', '--no-session-persistence',
+  '--permission-mode', '--permission-prompts', '--model', '--effort', '--json-schema', '--setting-sources',
 ]
-const missingFlags = requiredFlags.filter((flag) => !helpText.includes(flag))
-report(missingFlags.length === 0, 'CLI flags', missingFlags.length === 0 ? `${requiredFlags.length}/${requiredFlags.length} present` : `missing ${missingFlags.join(', ')}`)
+const missingFlags = requiredFlags.filter(flag => !helpText.includes(flag))
+report(help.status === 0 && !help.error && missingFlags.length === 0, 'CLI flags',
+  help.status !== 0 || help.error ? 'configured CLI help failed'
+    : missingFlags.length === 0 ? `${requiredFlags.length}/${requiredFlags.length} present` : `missing ${missingFlags.join(', ')}`,
+  'Upgrade the configured native CLI so it advertises the required streaming and session controls.')
 
-if (process.platform === 'darwin') {
-  // `-w` prints the stored password (the token JSON) to stdout. It is parsed
-  // here and never printed; only lengths and expiry reach the report.
-  const keychain = spawnSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-w'], {
-    encoding: 'utf8',
-    timeout: 10_000,
-  })
-  if (keychain.status !== 0) {
-    report(false, 'Claude Code keychain item', 'not found — run `claude auth login`')
-  } else {
-    try {
-      const oauth = JSON.parse(keychain.stdout.trim()).claudeAiOauth ?? {}
-      const accessToken = typeof oauth.accessToken === 'string' ? oauth.accessToken : ''
-      const refreshToken = typeof oauth.refreshToken === 'string' ? oauth.refreshToken : ''
-      report(
-        accessToken.length > 0 || refreshToken.length > 0,
-        'Claude Code keychain tokens',
-        `accessToken.length=${accessToken.length} refreshToken.length=${refreshToken.length} expiresAt=${String(oauth.expiresAt)}`,
-      )
-    } catch {
-      report(false, 'Claude Code keychain tokens', 'item exists but its value is not the expected OAuth JSON')
-    }
-  }
-}
-
+console.log('\nStatic checks only: each query still validates the actual SDK initialize response before sending its task prompt.')
 if (problems.length === 0) {
   console.log('\nCLAUDE CODE DOCTOR OK')
-  process.exit(0)
+  process.exitCode = 0
+} else {
+  console.log('\nNext steps:')
+  for (const nextStep of nextSteps) console.log(`- ${nextStep}`)
+  console.log(`\nCLAUDE CODE DOCTOR FAILED (${problems.length} problem(s))`)
+  process.exitCode = 1
 }
-console.log('\nNext steps:')
-console.log('- Run `claude auth login` in a normal Terminal window (not through an agent),')
-console.log('  complete the browser sign-in, then re-run this doctor.')
-console.log('- If `command` is not found, set the plugin config to an absolute path:')
-console.log('  config: { command: "/Users/you/.local/bin/claude" }')
-console.log(`\nCLAUDE CODE DOCTOR FAILED (${String(problems.length)} problem(s))`)
-process.exit(1)

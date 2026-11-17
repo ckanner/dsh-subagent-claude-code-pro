@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 (source candidate)
+
+- Use the pinned official `@anthropic-ai/claude-agent-sdk@0.3.326` for ordinary
+  machine and DSH delegations, including background work. Preserve the configured
+  local executable, explicit environment and native Claude Code behavior.
+- Keep the SDK inside the owned guardian, with strict raw-stream validation,
+  independent physical process-group cleanup, original stop causes, durable
+  lifecycle receipts and read-only recovery. Preserve persistent/new/resume/fork
+  semantics, names, multimodal input, schema output, child effort and real activity.
+- Reject corrupted SDK control/result tails without retaining completed outcome
+  or usage; keep intact native failed results and measured usage when the SDK
+  reports their expected nonzero exit. Apply the same facts to recovery receipts.
+- Keep native Review and interactive Team on their explicit CLI entry points.
+  Document SDK installation, local configuration and authorized authentication
+  as separate concerns. No npm publication or user-installation upgrade is implied.
+- Update doctor to verify the exact SDK and compatible native runtime, accept
+  native API authentication, and use only `auth status` without reading macOS
+  keychain tokens or credential files.
+
 ## 0.5.3 (source candidate)
 
 - Reject persistent creation/resume and interactive teams before CLI dispatch

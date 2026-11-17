@@ -13,13 +13,14 @@ import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline'
 
 const args = process.argv.slice(2)
 const flag = (name) => {
   const index = args.indexOf(name)
-  return index >= 0 ? args[index + 1] : undefined
+  return index >= 0 ? args[index + 1] : args.find(arg => arg.startsWith(name + '='))?.slice(name.length + 1)
 }
-const has = (name) => args.includes(name)
+const has = (name) => args.includes(name) || args.some(arg => arg.startsWith(name + '='))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const emit = (value) => process.stdout.write(`${JSON.stringify(value)}\n`)
 
@@ -33,8 +34,34 @@ if (has('--help')) {
   process.exit(0)
 }
 
-let stdin = ''
-for await (const chunk of process.stdin) stdin += chunk
+const mode = process.env.FAKE_CLAUDE_MODE ?? 'normal'
+let stdin = '', initialize
+if (process.env.CLAUDE_AGENT_SDK_VERSION && args[0] !== 'ultrareview') {
+  // Exercise the real SDK's bidirectional initialization rather than mocking
+  // query(). A task is not dispatched until the actual user message arrives.
+  for await (const line of createInterface({ input: process.stdin })) {
+    const message = JSON.parse(line)
+    if (message.type === 'control_request' && message.request?.subtype === 'initialize') {
+      initialize = message.request
+      if (process.env.FAKE_CLAUDE_CONTROL_LOG) appendFileSync(process.env.FAKE_CLAUDE_CONTROL_LOG, JSON.stringify(message) + '\n')
+      if (process.env.FAKE_CLAUDE_INITIALIZE_DELAY) await sleep(Number(process.env.FAKE_CLAUDE_INITIALIZE_DELAY))
+      if (mode === 'sdk-initialize-hang') { await sleep(60000); continue }
+      if (mode === 'sdk-initialize-fail') {
+        emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: 'fixture initialize refused' } })
+        continue
+      }
+      emit({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id,
+        response: { commands: [], agents: Object.keys(initialize.agents ?? {}), models: [], account: {},
+          ...(process.env.FAKE_CLAUDE_SDK_VERSION === 'missing' ? {} : { claude_code_version: process.env.FAKE_CLAUDE_SDK_VERSION ?? '2.1.326' }) } } })
+    } else if (message.type === 'user') {
+      stdin = JSON.stringify(message)
+      break
+    }
+  }
+  if (!stdin) process.exit(0)
+} else {
+  for await (const chunk of process.stdin) stdin += chunk
+}
 
 let prompt = ''
 let userContent = []
@@ -46,11 +73,10 @@ try {
   prompt = stdin
 }
 
-const mode = process.env.FAKE_CLAUDE_MODE ?? 'normal'
 if (mode === 'ignore-term') process.on('SIGTERM', () => {})
 const logPath = process.env.FAKE_CLAUDE_LOG
 if (logPath !== undefined) {
-  appendFileSync(logPath, `${JSON.stringify({ args, prompt, userContent, mode, pid: process.pid, parentPid: process.ppid, env: {
+  appendFileSync(logPath, `${JSON.stringify({ args, initialize, prompt, userContent, mode, pid: process.pid, parentPid: process.ppid, env: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN,
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
@@ -73,7 +99,7 @@ if (args[0] === 'ultrareview') {
 }
 const resumedId = flag('--resume')
 const newId = flag('--session-id')
-const sessionId = newId ?? resumedId ?? randomUUID()
+const sessionId = newId ?? (has('--fork-session') ? randomUUID() : resumedId) ?? randomUUID()
 const model = flag('--model') ?? 'fake-model'
 const stateDir = process.env.FAKE_CLAUDE_STATE
 
@@ -88,7 +114,7 @@ const init = () => emit({
   apiKeySource: 'ANTHROPIC_API_KEY',
   capabilities: ['fake'],
   tools: mode === 'native-mismatch' ? ['Agent', 'Workflow'] : ['Read', 'Bash', ...((flag('--disallowedTools') ?? '').split(',').includes('Agent') ? [] : ['Agent']), ...(process.env.CLAUDE_CODE_DISABLE_WORKFLOWS === '0' ? ['Workflow'] : [])],
-  agents: flag('--agents') ? Object.keys(JSON.parse(flag('--agents'))) : [],
+  agents: initialize?.agents ? Object.keys(initialize.agents) : flag('--agents') ? Object.keys(JSON.parse(flag('--agents'))) : [],
 })
 
 const result = (fields) => {
@@ -100,6 +126,7 @@ const result = (fields) => {
   total_cost_usd: 0.001,
   ...fields,
   }
+  if (value.is_error && value.subtype !== 'success') value.errors ??= [value.result ?? 'fixture failure']
   if (mode === 'partial-usage') delete value.usage.cache_creation_input_tokens
   if (mode === 'invalid-usage') { value.usage.input_tokens = -5; value.usage.output_tokens = '5' }
   if (mode === 'missing-usage') delete value.usage
@@ -111,6 +138,32 @@ const result = (fields) => {
   if (mode === 'duplicate-result') emit(value)
   if (mode === 'corrupt-tail') process.stdout.write('not-json\n')
   if (mode === 'trailing-assistant') emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: 'too late' }] } })
+}
+
+if (mode === 'sdk-bad-utf8') {
+  init()
+  process.stdout.write(Buffer.from([123, 34, 120, 34, 58, 34, 0xff, 34, 125, 10]))
+  result({ subtype: 'success', is_error: false, result: 'must not survive corrupt wire' })
+  process.exit(0)
+}
+
+if (mode.startsWith('sdk-terminal-tail-')) {
+  const failed = mode !== 'sdk-terminal-tail-success'
+  init()
+  result({ subtype: failed ? 'error_during_execution' : 'success', is_error: failed, result: 'native terminal before corrupt tail' })
+  const tail = mode === 'sdk-terminal-tail-truthy-error'
+    ? { type: 'result', is_error: 'yes', subtype: 'error_during_execution' }
+    : mode === 'sdk-terminal-tail-object-error'
+      ? { type: 'result', is_error: true, subtype: 'success', result: { toString: {} } }
+      : { type: 'control_response' }
+  await new Promise(resolve => process.stdout.write(JSON.stringify(tail) + '\n', resolve))
+  process.exit(failed ? 1 : 0)
+}
+
+if (mode === 'sdk-empty-failure') {
+  init()
+  result({ subtype: 'error_during_execution', is_error: true, errors: [] })
+  process.exit(1)
 }
 
 if (mode.startsWith('descendant-')) {
@@ -175,9 +228,10 @@ let prior = ''
 if (stateDir !== undefined) {
   mkdirSync(stateDir, { recursive: true })
   const file = join(stateDir, `${sessionId}.json`)
-  if (resumedId !== undefined && existsSync(file)) {
+  const previousFile = resumedId === undefined ? undefined : join(stateDir, `${resumedId}.json`)
+  if (previousFile !== undefined && existsSync(previousFile)) {
     try {
-      prior = JSON.parse(readFileSync(file, 'utf8')).prompt ?? ''
+      prior = JSON.parse(readFileSync(previousFile, 'utf8')).prompt ?? ''
     } catch {
       prior = ''
     }
@@ -215,7 +269,7 @@ if (mode === 'native-identity-overflow') {
   await sleep(60000)
 }
 if (mode.startsWith('activity-')) {
-  if (!has('--include-partial-messages') || !has('--forward-subagent-text')) process.exit(2)
+  if (!has('--include-partial-messages') || !(has('--forward-subagent-text') || initialize?.forwardSubagentText === true)) process.exit(2)
   if (mode === 'activity-silent') await sleep(60000)
   if (mode === 'activity-budget') await sleep(3000)
   if (mode === 'activity-ambient') {

@@ -4,8 +4,9 @@
 
 本候选版本把原生 Agent、Workflow、Advisor、独立云端 Review 和真实交互式 Team
 接入了桌面插件。公开 `dsh-subagent-claude-code-pro/machine` 仍可独立用于调度器；
-两者复用同一份 CLI 控制、事件账本与受监督运行实现。运行的是用户本机安装并登录的
-Claude CLI。插件不安装第二套 SDK、不改登录态、不把完整任务缩成只读 helper。
+两者复用事件账本与受监督运行实现。0.6.0 起，普通委派使用官方 Agent SDK 0.3.326
+驱动配置指定的本地 Claude 可执行文件；Review 与交互式 Team 保留各自专用的
+CLI 入口。认证由原生程序解析，详见[程序、配置与认证](../README.zh.md#程序配置与认证)。
 
 ## 桌面设置与 PTC 的关系
 
@@ -77,7 +78,7 @@ definitions，null/关闭仍可用。
 
 `native.agents.definitions[name].effort` 接受 `low`、`medium`、`high`、`xhigh`、
 `max`，与根 PTC 参数 `reasoning_effort` 或 machine 请求的 `effort` 分开设置。
-插件校验枚举后原样放入原生 `--agents` JSON；省略时不添加子级覆盖。
+插件校验后原样放入 SDK `agents` 定义；交互 Team 仍使用原生 `--agents`。省略时不添加子级覆盖。
 
 实际等级遵循 [Claude Code 子 Agent 规则](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)：
 没有子级覆盖时，使用主会话同一模型的子 Agent 沿用会话 effort；使用其他模型的
@@ -109,11 +110,11 @@ inspect(another.native);
 
 ## 配置确实如何生效
 
-普通委派把 native 传到真实 CLI 的 argv、settings 与进程环境：
+普通委派通过官方 SDK 将 native 传入原生控制协议、settings 与进程环境：
 
-| 控制 | CLI 接口 |
+| 控制 | SDK／原生接口 |
 | --- | --- |
-| Agent definitions（包括逐个 model / effort） | --agents JSON |
+| Agent definitions（包括逐个 model / effort） | SDK agents，经 initialize 传递；交互 Team 保留 --agents |
 | Advisor | --advisor model，关闭时 CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1 |
 | Agent 并发 / 深度 | CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS / CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH |
 | Workflow 并发 | CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS |

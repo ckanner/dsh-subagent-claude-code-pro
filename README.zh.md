@@ -8,9 +8,9 @@
 
 [English](README.md) | 中文
 
-DeepSeek Harness 的 Claude Code 委派插件：**直接驱动你本机已登录的 `claude`
-CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官方
-`@deepseek-ai/dsh-subagent-claude-code` 无法表达的几件事：
+DeepSeek Harness 的 Claude Code 委派插件：从 **0.6.0** 起，普通委派通过官方
+**`@anthropic-ai/claude-agent-sdk@0.3.326`** 调用配置指定的本地 `claude`
+可执行文件，同时补上官方 `@deepseek-ai/dsh-subagent-claude-code` 无法表达的能力：
 
 - 每次调用可选 **model 与思考等级**（`--model`、`--effort`）；
 - **可复用的 Claude Code Session**（`--session-id` / `--resume`，或每个 DSH
@@ -18,6 +18,9 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
 - 调用只能收窄、不能放大配置的权限模式；
 - 单次委派的 deadline、调用方取消、进程组清理；
 - 诊断日志 `~/.dsh/claude-code-pro.log`（插件没有会话可读的日志面）。
+
+0.6.0 迁移为源码候选；精确 SDK／原生版本、独立审查及真实历史验证见
+[SDK 验证记录（英文）](docs/sdk-migration-validation.md)。
 
 > **状态**：`0.3.1` 是首个完成真实环境全量验证的版本：文本、图片/PDF 输入、
 > 图片输出、`output_schema`、后台任务、Session（含 fork）均已用本地 `claude`
@@ -46,10 +49,24 @@ CLI**，不下载、不内置官方 Agent SDK 的平台载荷，同时补上官�
   resume。
 
 本插件自己注册模型工具（与 Codex Pro / LCU 相同的
-`agent/created → agent.ctx.tools.register` 路径），并通过本地 CLI 的
-`--print --input-format stream-json --output-format stream-json` 协议驱动。
-CLI 的原生设置、hooks、MCP、模型默认值和登录态保持权威——用户自己安装并登录
-过的那一份。
+`agent/created → agent.ctx.tools.register` 路径）。普通调用使用 SDK 的 `query()`
+与控制协议，由 SDK 在既有受监督进程组内启动指定的本地程序；插件继续维护会话
+身份、真实活动、终态验证和物理清理。原生 Review 与交互式 Team 保留各自的专用
+CLI 入口。
+
+### 程序、配置与认证
+
+`command` 保持权威，默认 `claude`，也可配置绝对路径。本地命令缺失或不兼容时，
+不会静默改用 SDK 自带程序。安装 SDK 时可能同时安装其可选平台程序包，但实际
+运行程序仍由显式配置决定。
+
+`HOME`、`CLAUDE_CONFIG_DIR` 与 `settingSources` 保持原有语义，由原生程序解析
+认证；插件不读取或复制登录凭据。本地登录态是否可用属于程序和环境的技术行为，
+不表示所有订阅都已获准用于第三方集成。Anthropic 的
+[Agent SDK 官方文档](https://code.claude.com/docs/en/agent-sdk/overview)要求第三方
+产品使用 API 认证，另行获准提供 claude.ai 登录或额度的情况除外。通过 `env`
+（machine API 使用 `credentialEnv`）显式配置获准使用的凭据；环境中凭据形状
+变量仍默认过滤。安装 SDK 本身不会完成认证或切换账号。
 
 ## 安装
 
@@ -132,7 +149,7 @@ image block 与答案一起返回给父模型，所以接受图片输入的父�
 
 ### 结构化输出与后台任务
 
-`output_schema` 映射为 CLI 的 `--json-schema`：最终答案是 JSON，插件用受支持的
+`output_schema` 映射为 SDK 的 `outputFormat` schema：最终答案是 JSON，插件用受支持的
 schema 子集二次校验，非 JSON 或不合规即失败关闭；带 schema 的结果保持纯 JSON，
 不追加 session marker。
 
@@ -143,17 +160,14 @@ worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code �
 
 ### 认证与 CLI 凭据存储
 
-插件不读取/创建/刷新/改写凭据——凭据完全由本地 CLI 管理。两条实测注意事项：
+插件不读取、创建、刷新或改写凭据，由原生程序管理认证。第三方 SDK 集成应显式
+配置获准使用的 API 凭据，例如 `env.ANTHROPIC_API_KEY`；其他原生认证方式须满足
+其适用授权，使用 SDK 本身不会授予订阅使用资格。
 
-- CLI 的 OAuth 会话存在系统钥匙串（macOS）/配置目录中。多个 CLI 进程并发刷新同一
-  会话可能产生竞态；刷新失败时 CLI 可能清空已存 token，并报
-  `OAuth session expired and could not be refreshed`。遇到时先跑
-  `node scripts/doctor.mjs`，再 `claude auth login`。
-- 无人值守或高频使用，建议用静态子进程凭据：`claude setup-token` 生成长期 token，
-  通过插件 `env` 传 `CLAUDE_CODE_OAUTH_TOKEN`（或用 `ANTHROPIC_API_KEY`），
-  这样不依赖钥匙串刷新。
-
-doctor 只打印 token 长度，不打印值。
+运行 `node scripts/doctor.mjs` 检查所选程序的 `auth status`。Doctor 只报告原生
+认证是否可用，不读取钥匙串，不输出 token、token 长度或原始认证响应；修复建议
+针对实际失败的前提，不统一要求重新登录。
+[早期真实验证记录](docs/live-verification.zh.md)保留历史 CLI 凭据刷新观察。
 
 ### 权限
 
@@ -188,16 +202,19 @@ doctor 只打印 token 长度，不打印值。
 
 ## 前提与限制
 
-- 本机 `claude` CLI 已登录；插件不负责登录、刷新或改写凭据。
-  `claude auth status` 应为 `loggedIn: true`。
-- 需要 Claude Code 2.1.211+ 且实际支持所需流式 flags；协议是 SDK 的 stream-json 行格式，CLI 升级可能
-  增删事件。插件忽略未知事件，无法解析终态则失败关闭。
+- 本地 `claude` 可执行文件能从其环境取得获准使用的认证；插件不负责登录或管理
+  凭据刷新。
+- 本地程序须为稳定的 **Claude Code 2.1.325 或更新版本**，这是 SDK 0.3.326 的
+  最低已验证版本；SDK 核对同一进程的 initialize 响应后才放行任务输入。固定版本
+  的 Agent SDK 与本地程序须支持实际使用的初始化、权限和流式选项。
+  插件在任务前检查所需 CLI flags，并验证返回流；不兼容或无法读取的终态明确
+  失败，不能只凭版本号放行。
 - Desktop 应用在启动时捕获环境；如果 PATH 里没有 `claude`，请把 `command` 指向
   绝对路径。
 - 子进程使用 CLI 的原生设置、hooks、MCP、plugins、skills；它不是沙箱，权限模式
   才是边界。
-- 图片/PDF 输入与 `--json-schema` 要求 CLI 支持对应 flags（Claude Code 2.1+）。
-  不支持的 flag 会让这次运行失败并带上 CLI 的消息。
+- 图片/PDF 输入和 SDK 结构化输出要求兼容的原生支持；初始化或输出验证失败时，
+  不会静默丢弃这些请求。
 - 并发委派会并发启动 CLI 进程。这通常是可行的，但 CLI 自己的凭据刷新是共享状态，
   重度并发是 CLI 的限制，本插件不接管。
 - Windows 缺少进程树清理支持，因此在派发前拒绝调用；支持的 POSIX 平台按进程组清理。
@@ -210,9 +227,10 @@ doctor 只打印 token 长度，不打印值。
 node scripts/doctor.mjs
 ```
 
-输出可执行文件/版本、`claude auth status`、插件依赖的 CLI flags，以及 macOS 上
-Claude Code 钥匙串项是否真的有 token（只打印长度与过期时间，不打印值）。有问题时
-退出码非 0。委派返回 `category: auth` 时先跑这个。
+检查精确的 Agent SDK 安装及公开 query 导入、本地可执行文件／版本、
+`claude auth status` 和所需 CLI flags。原生 API 认证不要求另有订阅 token，
+也不打开钥匙串或凭据文件。前提不满足时退出码非 0。这些只是静态检查，每次实际
+查询仍会在任务输入前核对自己的 initialize 响应；认证状态不等于付费模型验收。
 
 ## 诊断
 

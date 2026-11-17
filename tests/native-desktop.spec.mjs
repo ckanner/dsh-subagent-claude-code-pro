@@ -6,6 +6,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { apply, Config, resolveConfig } from '../lib/index.js'
 import { resolveDesktopNative, desktopSessionIdentity } from '../lib/native-desktop.js'
 import { makeAgent, makeContext, makeFakeCommand, makeTempDir } from './helpers.mjs'
+import { argumentValue } from './sdk-assertions.mjs'
 
 process.env.DSH_HOME = makeTempDir('ccpro-native-desktop-home-')
 const on = { version:1, agents:{enabled:true,maxConcurrent:3,maxDepth:2,definitions:{
@@ -13,7 +14,7 @@ const on = { version:1, agents:{enabled:true,maxConcurrent:3,maxDepth:2,definiti
 }}, workflows:{enabled:true,maxConcurrent:2}, advisor:{enabled:true,model:'opus'} }
 const call = (tool, args = {}, signal = new AbortController().signal) => tool.execute({description:'native fixture',prompt:'complete task',...args},{signal})
 const logs = path => { try { return readFileSync(path,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) } catch { return [] } }
-const flag = (run,name) => { const i=run.args.indexOf(name); return i<0?undefined:run.args[i+1] }
+const flag = (run,name) => argumentValue(run.args,name)
 function setup(t, options={}) {
   const cwd=makeTempDir('ccpro-native-plugin-'), log=join(cwd,'calls')
   t.after(()=>rmSync(cwd,{recursive:true,force:true}))
@@ -69,7 +70,7 @@ test('live Config reference is read for each operation without remounting',()=>{
   assert.deepEqual(on.advisor,{enabled:true,model:'opus'})
 })
 
-test('PTC inherits actual native CLI args, env, child events and non-additive receipts',async t=>{
+test('PTC inherits actual SDK initialization, native CLI controls, child events and non-additive receipts',async t=>{
   const f=setup(t,{native:on,mode:'native-child'})
   const value=await call(f.tool)
   assert.equal(value.native.effective.matched,true)
@@ -83,7 +84,7 @@ test('PTC inherits actual native CLI args, env, child events and non-additive re
   assert.equal(value.native.cleanup.confirmed,true)
   const run=logs(f.log)[0]
   assert.equal(flag(run,'--advisor'),'opus')
-  assert.deepEqual(JSON.parse(flag(run,'--agents')),on.agents.definitions)
+  assert.deepEqual(run.initialize.agents,on.agents.definitions)
   assert.equal(run.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS,'3')
   assert.equal(run.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH,'2')
   assert.equal(run.env.CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS,'2')
@@ -98,7 +99,7 @@ test('object replaces native defaults; null disables and removes residual bounds
   assert.deepEqual(object.native.requested,{version:1,workflows:{enabled:true,maxConcurrent:4}})
   assert.deepEqual(off.native.requested,{version:1})
   const [first,second]=logs(f.log)
-  assert.equal(flag(first,'--agents'),undefined)
+  assert.equal(first.initialize.agents,undefined)
   assert.equal(flag(first,'--advisor'),undefined)
   assert.equal(first.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS,undefined)
   assert.equal(first.env.CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS,'4')
@@ -150,7 +151,7 @@ test('changing only a child effort isolates the next desktop session',async t=>{
   const next=logs(f.log)[1]
   assert.equal(flag(next,'--resume'),undefined)
   assert.notEqual(flag(next,'--session-id'),first)
-  assert.equal(JSON.parse(flag(next,'--agents')).implementer.effort,'xhigh')
+  assert.equal(next.initialize.agents.implementer.effort,'xhigh')
   assert.equal(result.native.requested.agents.definitions.implementer.effort,'xhigh')
   await assert.rejects(call(f.tool,{session_id:first}),/different native/)
 })

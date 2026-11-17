@@ -2,9 +2,12 @@
 
 The public `dsh-subagent-claude-code-pro/machine` entry now exposes native Agent,
 Workflow, advisor, media and structured-output controls, plus independent native
-review and interactive Team jobs. The package drives the locally installed,
-logged-in `claude` CLI. It does not install the Agent SDK, change authentication,
-write global user settings, or enable another billing provider.
+review and interactive Team jobs. From 0.6.0, ordinary delegation uses official
+Agent SDK 0.3.326 with the configured local `claude` executable. Review and
+interactive Team keep their dedicated native CLI operations. The guardian,
+native event ledger and machine receipts apply across these entry points.
+Authentication is resolved by the native runtime; see
+[runtime, settings and authentication](../README.md#runtime-settings-and-authentication).
 
 Protocol 1 requests without `native` retain their previous behavior. Explicit
 controls configure full native workers with the caller's native permission mode,
@@ -90,7 +93,7 @@ Per-agent effort requires plugin 0.5.1 or later.
 Each `native.agents.definitions[name].effort` accepts `low`, `medium`, `high`,
 `xhigh` or `max`, independently of the root PTC `reasoning_effort` or machine
 request's `effort`. The plugin validates the value and forwards it unchanged in
-the native `--agents` JSON. Omitting it adds no child effort override.
+SDK `agents` definitions (the native CLI `--agents` shape for interactive Team). Omitting it adds no child effort override.
 
 Claude Code applies its [subagent effort rules](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level):
 without a child override, a child on the main conversation's model follows the
@@ -123,8 +126,8 @@ const single = await tools.subagent_claude_code({
 inspect(single.native);
 ```
 
-Native controls are real `--agents`, `--advisor`,
-`--settings`, deny-tool arguments and scoped environment variables. The
+Native controls use SDK Agent definitions, settings and disallowed tools,
+scoped environment variables and the public `extraArgs` extension for Advisor. The
 plugin does not translate a request into a restricted helper prompt. The native
 receipt retains requested/effective settings, child events and models, non-additive
 usage, completion and cleanup. Background progress includes native events and the
@@ -248,7 +251,7 @@ const receipt = await runMachine({
 })
 ```
 
-`agents.definitions` uses native `--agents` definitions: description, prompt,
+`agents.definitions` maps to SDK `agents` with the native definition fields: description, prompt,
 tools, disallowedTools, model, effort, permissionMode and maxTurns. Installed project/user
 agent definitions remain available. Root model and effort retain their existing
 per-invocation controls; [child effort](#per-agent-effort) is a separate optional
@@ -293,7 +296,8 @@ guard requires a started task-run identity and excludes historical snapshots.
 
 Machine requests accept up to 20 base64 image objects `{data, mimeType}` with a
 32 MiB total encoded limit. Supported MIME types are PNG, JPEG, GIF and WebP. They
-become real user-message image blocks. `outputSchema` passes `--json-schema`, and
+become real user-message image blocks. `outputSchema` becomes the SDK's
+`outputFormat` schema and travels in initialize, and
 the returned object is checked with the same explicit schema validator used by
 the desktop integration. An unsupported schema assertion is a validation failure,
 not silently accepted. `receipt.structured` retains the validated value; returned

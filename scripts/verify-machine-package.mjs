@@ -22,7 +22,7 @@ try {
   assert.equal(tarballs.length, 1)
   const installed = join(temp, 'installed')
   mkdirSync(installed)
-  run(npm, ['install', '--prefix', installed, '--ignore-scripts', '--no-audit', '--no-fund', join(temp, tarballs[0])])
+  run(npm, ['install', '--prefix', installed, '--ignore-scripts', '--no-audit', '--no-fund', join(temp, tarballs[0])], { timeout: 120_000 })
   const command = join(temp, 'fake-claude.mjs')
   copyFileSync(join(root, 'tests/fixtures/fake-claude.mjs'), command)
   chmodSync(command, 0o755)
@@ -38,6 +38,7 @@ try {
   writeFileSync(join(installed, 'consumer.mjs'),
     'import { runMachine, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES, MACHINE_ACTIVITY_VERSION, MACHINE_ACTIVITY_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
     + 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);\n'
+    + 'const sdk = await import("@anthropic-ai/claude-agent-sdk"); if (typeof sdk.query !== "function") throw new Error("official SDK query missing from installed dependency");\n'
     + 'for (const peer of ["@deepseek-ai/schemastery", "@deepseek-ai/dsh-home-paths"]) { try { require.resolve(peer); throw new Error("machine consumer unexpectedly installed " + peer); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; } }\n'
     + 'const request = ' + JSON.stringify(request) + '; const directory = ' + JSON.stringify(join(temp, 'journal')) + ';\n'
     + 'if (MACHINE_NATIVE_CAPABILITIES.version !== 1 || typeof runNativeReview !== "function" || typeof recoverNativeJob !== "function") throw new Error("native exports missing");\n'
@@ -60,13 +61,14 @@ try {
     capabilities: { version: 1, durableJournal: true, readOnlyRecovery: true, threadReadyBeforeDispatch: false },
     events: ['dispatch-intent', 'dispatch-possible', 'terminal', 'cleanup-confirmed'], resumed: true, activity: true })
   const nativeCall = JSON.parse(readFileSync(nativeLog, 'utf8').trim())
-  assert.deepEqual(JSON.parse(nativeCall.args[nativeCall.args.indexOf('--agents') + 1]), nativeRequest.agents.definitions)
-  assert.equal(nativeCall.args[nativeCall.args.indexOf('--effort') + 1], request.effort)
+  assert.deepEqual(nativeCall.initialize.agents, nativeRequest.agents.definitions)
+  assert.ok(nativeCall.args.includes('--effort=' + request.effort))
   const activeCall = JSON.parse(readFileSync(activityLog, 'utf8').trim())
-  assert.equal(activeCall.args[activeCall.args.indexOf('-n') + 1], 'Packed activity')
-  assert.ok(activeCall.args.includes('--include-partial-messages') && activeCall.args.includes('--forward-subagent-text'))
+  assert.equal(activeCall.initialize.title, 'Packed activity')
+  assert.ok(activeCall.args.includes('--include-partial-messages'))
+  assert.equal(activeCall.initialize.forwardSubagentText, true)
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   process.stdout.write(JSON.stringify({ ok: true, version: manifest.version, actualNpmInstall: true,
     publicMachineAPI: true, machineSupervisor: true, durableLifecycle: true, readOnlyRecovery: true, explicitResume: true,
-    nativeChildEffort: true, observedActivity: true, namedSession: true, persistenceGuard: true, inferenceRequests: 0 }) + '\n')
+    officialAgentSdk: '0.3.326', nativeChildEffort: true, observedActivity: true, namedSession: true, persistenceGuard: true, inferenceRequests: 0 }) + '\n')
 } finally { rmSync(temp, { recursive: true, force: true }) }
