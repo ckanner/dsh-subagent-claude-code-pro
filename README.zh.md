@@ -106,6 +106,14 @@ subagent_claude_code({
 session 只在创建它的 cwd 中、有效 native／模型／权限配置一致且没有其他委派占用时复用；记忆 session 不存在时自动
 新建并记录原因；`fork_session: true` 分支出新 session。
 
+历史持久化不代表会自动进入 Claude 的会话选择器或 Desktop 侧栏。Claude 会把
+print／SDK 会话排除在普通选择器之外；应使用结果中的 UUID 执行
+`claude --resume <session-id>`。已结束的会话也可以显式交给支持此能力的 Claude
+Desktop 打开。具体命令、配置目录要求和接管规则见
+[原生 CLI 与 Desktop 历史](docs/machine-api.zh.md#原生-cli-与-desktop-历史)。
+从 0.5.3 起，若转发的 `CLAUDE_CODE_SKIP_PROMPT_HISTORY` 启用了历史禁用，persistent
+请求会在 CLI 派发前失败。需要取消该设置或显式选择 ephemeral；插件保留用户的偏好。
+
 ### 多模态输入
 
 `images` 传绝对路径（PNG/JPEG/GIF/WebP），`documents` 传 PDF 路径。所有附件在

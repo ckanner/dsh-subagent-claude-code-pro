@@ -122,6 +122,16 @@ a remembered session that no longer exists is repaired by starting a fresh one,
 with the reason in the diagnostic log. `fork_session: true` branches a continued
 session into a new id.
 
+Durable history does not imply automatic inclusion in Claude's session picker
+or Desktop sidebar. Claude excludes print/SDK sessions from the ordinary picker;
+use the reported UUID with `claude --resume <session-id>`. A completed session
+can also be opened explicitly in a supported Claude Desktop installation. See
+[native CLI and Desktop history](docs/machine-api.md#native-cli-and-desktop-history)
+for the handoff commands, configuration-directory requirement and ownership rules.
+From 0.5.3, a persistent request fails before CLI dispatch when its forwarded
+`CLAUDE_CODE_SKIP_PROMPT_HISTORY` enables history suppression. Unset that setting
+or explicitly choose ephemeral mode; the plugin preserves the user's preference.
+
 ### Multimodal input
 
 `images` takes absolute paths (PNG, JPEG, GIF, WebP) and `documents` takes PDF

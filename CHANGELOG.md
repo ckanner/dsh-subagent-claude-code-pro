@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.3 (source candidate)
+
+- Reject persistent creation/resume and interactive teams before CLI dispatch
+  when the forwarded `CLAUDE_CODE_SKIP_PROMPT_HISTORY` enables native history
+  suppression. Match the CLI's boolean parsing, preserve explicit ephemeral
+  work, and preserve the user's environment instead of marking a
+  history-suppressed query resumable. Cover machine and DSH tool paths with
+  no-dispatch regressions.
+
+- Clarify that durable print-mode sessions are resumable by their exact root UUID
+  but are excluded from Claude's ordinary session picker. Document the supported
+  terminal and Desktop handoff, shared configuration directory, version/platform
+  requirements and exclusive session ownership; readable names alone do not
+  register sessions in the Desktop sidebar.
+- Verify the history-suppression defect with Claude Code 2.1.325 against a local
+  offline protocol fixture. This candidate is not an npm publication, live-model
+  run or Desktop UI acceptance claim.
+
 ## 0.5.2 (source candidate)
 
 - Add public metadata-only `onActivity` with bounded event-driven coalescing across root and child streams. Native task progress remains observable even when the durable state ledger deduplicates unchanged states.
