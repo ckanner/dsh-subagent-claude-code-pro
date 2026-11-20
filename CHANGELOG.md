@@ -2,6 +2,13 @@
 
 ## 0.7.0 (subscription source candidate)
 
+- Persist ordered input-image SHA-256, MIME type and decoded-byte identities in
+  machine receipts and pre-dispatch journals without retaining image contents;
+  read-only recovery exposes the original manifest and never accepts replacements.
+
+- Validate large canonical base64 image inputs without recursive regular-expression
+  stack overflow; exercise a 4 MiB decoded attachment through the real pinned SDK.
+  Keep the existing public media formats, count/encoded-size limits and text-only behavior.
 - Add opt-in versioned native subscription-only admission to machine, DSH/PTC
   and background calls. The pinned official SDK checks the same initialized
   local CLI's account and public usage control before releasing any task prompt;

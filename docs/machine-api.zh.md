@@ -70,6 +70,19 @@ result 或迭代结束本身不是清理证据。machine protocol、lifecycle ve
 `settingSources` 默认 `user/project/local`；显式空数组会传递
 `--setting-sources ''`，不会意外恢复默认设置。
 
+可选 `images` 使用规范 base64 `data` 与 `mimeType`（`image/png`、`image/jpeg`、
+`image/gif` 或 `image/webp`）。公开解析器最多接受 20 张、encoded 总计 32 MiB；
+调用方可以设置更窄的限制。SDK 按输入顺序在 prompt 之后接收图片内容块。
+解析器检查传输结构，不解码栅格内容；处理文件的宿主应在调用前验证真实格式与尺寸。
+
+有非空图片输入时，`requested.inputImages` 按顺序记录
+`{version: 1, images: [{mimeType, sha256, bytes}]}`，其中小写 SHA-256 与字节数
+由请求的实际解码字节计算。同份 metadata 会在恢复 journal 创建时写入
+`context.inputImages`，早于任何派发检查点。两处均不保存图片内容、路径或 prompt。
+宿主可以在 pending 或 terminal 恢复时核对 manifest，无需重新读取原图。
+恢复只接受原有 request/run 身份与 journal 路径，不能替换附件或派发新 prompt。
+没有图片的请求继续省略这些字段。
+
 ## 原生 CLI 与 Desktop 历史
 
 历史持久化、客户端发现和允许继续操作是三个独立事实。persistent query 使用已安装

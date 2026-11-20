@@ -71,6 +71,11 @@ export interface MachineRuntime {
   /** New private directory below an existing canonical parent; never reused. */
   recoveryDirectory?: string
 }
+/** Ordered input identities computed from decoded bytes, without paths or image contents. */
+export interface MachineInputImageManifest {
+  version: 1
+  images: Array<{ mimeType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'; sha256: string; bytes: number }>
+}
 export interface MachineReceipt {
   protocol: 1
   type: 'result'
@@ -85,6 +90,7 @@ export interface MachineReceipt {
     sessionMode: 'ephemeral' | 'persistent'
     sessionId: string | null
     sessionName?: string
+    inputImages?: MachineInputImageManifest
     settingSources: SettingSource[]
   }
   execution: {
@@ -178,6 +184,8 @@ export interface MachineRecoveryReceipt {
   receipt: MachineReceipt | null
   lifecycle: MachineLifecycleEvent | null
   reason: string
+  /** Present for image queries from initial journal creation, including pending recovery. */
+  context?: { inputImages: MachineInputImageManifest }
 }
 /** Read only the explicitly identified journal; never spawns, resumes or replays. */
 export function recoverMachine(input: MachineRecoveryRequest): Promise<MachineRecoveryReceipt>
@@ -250,7 +258,7 @@ export function runInteractiveTeam(request: InteractiveTeamRequest, runtime: Mac
 /** Preflight only; never launches a process or creates a recovery journal. */
 export function validateNativeReviewRequest(request: NativeReviewRequest): void
 export function validateInteractiveTeamRequest(request: InteractiveTeamRequest): void
-export function recoverNativeJob(request: MachineRecoveryRequest): Promise<Omit<MachineRecoveryReceipt, 'receipt'> & {
+export function recoverNativeJob(request: MachineRecoveryRequest): Promise<Omit<MachineRecoveryReceipt, 'receipt' | 'context'> & {
   receipt: NativeJobReceipt | null; context?: Record<string, unknown>
 }>
 export function controlInteractiveTeam(request: MachineRecoveryRequest & {

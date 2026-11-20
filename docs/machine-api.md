@@ -85,6 +85,23 @@ Raw ultrareview JSON remains limited to 64 MiB and capability help to 256 KiB.
 `settingSources` defaults to `user`, `project`, `local`;
 an explicit empty array is forwarded as `--setting-sources ''`.
 
+Optional `images` carry canonical base64 `data` and `mimeType` (`image/png`,
+`image/jpeg`, `image/gif`, or `image/webp`). The public parser accepts up to 20
+images and 32 MiB of encoded data in total; consumers may enforce narrower
+limits. The SDK receives ordered image content blocks after the prompt. The
+parser validates the envelope, not the raster contents; hosts handling files
+must validate their content and dimensions before calling this API.
+
+For nonempty image input, `requested.inputImages` records
+`{version: 1, images: [{mimeType, sha256, bytes}]}` in order. Each lower-case
+SHA-256 and byte count comes from the actual decoded request bytes. The same
+metadata is persisted at `context.inputImages` when the recovery journal is
+created, before any dispatch checkpoint. Neither location stores image data,
+paths, or prompt text. A host can compare the manifest during pending or
+terminal recovery without reading the original files again. Recovery accepts
+only the original request/run identity and journal path; it cannot replace an
+attachment or dispatch another prompt. Calls without images omit this metadata.
+
 ## Native CLI and Desktop history
 
 Persistence, discovery and permission to continue are separate facts. A persistent

@@ -39,6 +39,22 @@ test('public package export validates one explicit machine request without start
   assert.deepEqual(f.calls(), [])
 })
 
+test('large canonical image data crosses the public parser and real SDK without regex stack overflow', async () => {
+  const f = fixture()
+  const data = Buffer.alloc(4 * 1024 * 1024, 37).toString('base64')
+  const image = { mimeType: 'image/png', data }
+  assert.deepEqual(parseMachineRequest({ ...f.request, images: [image] }).images, [image])
+  for (const invalid of ['A', 'AA=A', 'AA==\n', 'AB==', 'AAB=', '=AAA', 'AAAA===']) {
+    assert.throws(() => parseMachineRequest({ ...f.request, images: [{ ...image, data: invalid }] }), MachineInputError)
+  }
+  assert.deepEqual(f.calls(), [], 'validation never starts the native CLI')
+  const receipt = await f.run({ images: [image] })
+  assert.equal(receipt.ok, true, JSON.stringify(receipt.failure))
+  assert.deepEqual(f.calls()[0].userContent[1], {
+    type: 'image', source: { type: 'base64', media_type: 'image/png', data },
+  })
+})
+
 test('validation rejects ambiguous sessions, native policy names, unsafe fields and bounds before dispatch', () => {
   const f = fixture()
   const invalid = [null, [], {}, { ...f.request, protocol: 2 }, { ...f.request, unknown: true },

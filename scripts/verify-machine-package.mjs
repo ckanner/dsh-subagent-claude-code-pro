@@ -5,6 +5,7 @@ import { chmodSync, copyFileSync, mkdtempSync, mkdirSync, readFileSync, readdirS
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const temp = realpathSync(mkdtempSync(join(tmpdir(), 'claude-machine-package-')))
@@ -35,6 +36,11 @@ try {
   } } }
   const nativeLog = join(temp, 'native-argv.jsonl')
   const activityLog = join(temp, 'activity-argv.jsonl')
+  const imageLog = join(temp, 'image-argv.jsonl')
+  const imageBytes = readFileSync(join(root, 'tests/fixtures/multimodal-reference.png'))
+  const inputImage = { mimeType: 'image/png', data: imageBytes.toString('base64') }
+  const inputImageManifest = { version: 1, images: [{ mimeType: inputImage.mimeType,
+    sha256: createHash('sha256').update(imageBytes).digest('hex'), bytes: imageBytes.length }] }
   writeFileSync(join(installed, 'consumer.mjs'),
     'import { runMachine, inspectSubscription, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES, MACHINE_ACTIVITY_VERSION, MACHINE_ACTIVITY_CAPABILITIES, MACHINE_SUBSCRIPTION_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
     + 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);\n'
@@ -51,6 +57,10 @@ try {
     + 'const events = []; const receipt = await runMachine(request, { recoveryDirectory: directory, onLifecycle: e => { events.push(e.event); } });\n'
     + 'const recovered = await recoverMachine({ protocol: 1, requestId: receipt.requestId, runId: receipt.runId, recoveryDirectory: directory });\n'
     + 'if (!receipt.ok || JSON.stringify(recovered.receipt) !== JSON.stringify(receipt)) throw new Error("installed lifecycle mismatch");\n'
+    + 'const imageManifest = ' + JSON.stringify(inputImageManifest) + '; const imageDirectory = ' + JSON.stringify(join(temp, 'image-journal')) + ';\n'
+    + 'const imageReceipt = await runMachine({...request,requestId:"packed-image",model:"fable",subscription:{version:1,mode:"subscription-only"},images:[' + JSON.stringify(inputImage) + ']}, {recoveryDirectory:imageDirectory,onLifecycle:()=>{},env:{...process.env,HOME:request.cwd,CLAUDE_CONFIG_DIR:request.cwd,FAKE_CLAUDE_LOG:' + JSON.stringify(imageLog) + '}});\n'
+    + 'const imageRecovery = await recoverMachine({protocol:1,requestId:imageReceipt.requestId,runId:imageReceipt.runId,recoveryDirectory:imageDirectory});\n'
+    + 'if (!imageReceipt.ok || JSON.stringify(imageReceipt.requested.inputImages)!==JSON.stringify(imageManifest) || JSON.stringify(imageRecovery.context)!==JSON.stringify({inputImages:imageManifest}) || JSON.stringify(imageRecovery.receipt)!==JSON.stringify(imageReceipt)) throw new Error("installed input-image identity mismatch");\n'
     + 'const resumed = await runMachine({ ...request, requestId: "packed-resume", sessionId: receipt.session.id });\n'
     + 'if (!resumed.ok || !resumed.session.resumed) throw new Error("installed resume mismatch");\n'
     + 'for (const sessionId of [undefined, receipt.session.id]) { const rejected = await runMachine({...request, sessionId}, {env:{...process.env,CLAUDE_CODE_SKIP_PROMPT_HISTORY:"1"}}); if (rejected.ok || rejected.failure?.category !== "invalid-request" || rejected.execution.dispatch !== "not-dispatched" || !rejected.cleanup.confirmed || rejected.session.resumable) throw new Error("installed persistence guard mismatch"); }\n'
@@ -70,8 +80,12 @@ try {
   assert.equal(activeCall.initialize.title, 'Packed activity')
   assert.ok(activeCall.args.includes('--include-partial-messages'))
   assert.equal(activeCall.initialize.forwardSubagentText, true)
+  const imageCall = JSON.parse(readFileSync(imageLog, 'utf8').trim())
+  assert.deepEqual(imageCall.userContent[1], { type: 'image',
+    source: { type: 'base64', media_type: inputImage.mimeType, data: inputImage.data } })
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   process.stdout.write(JSON.stringify({ ok: true, version: manifest.version, actualNpmInstall: true,
     publicMachineAPI: true, machineSupervisor: true, durableLifecycle: true, readOnlyRecovery: true, explicitResume: true,
-    officialAgentSdk: '0.3.326', nativeChildEffort: true, observedActivity: true, namedSession: true, persistenceGuard: true, inferenceRequests: 0 }) + '\n')
+    officialAgentSdk: '0.3.326', nativeChildEffort: true, observedActivity: true, namedSession: true, persistenceGuard: true,
+    inputImages: true, imageIdentityRecovery: true, inferenceRequests: 0 }) + '\n')
 } finally { rmSync(temp, { recursive: true, force: true }) }
