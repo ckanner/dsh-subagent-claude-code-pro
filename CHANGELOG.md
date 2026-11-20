@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- Accept the DSH 0.2.1-rc.5 through 0.3 compatibility window for the host
+  `@deepseek-ai/dsh-home-paths` peer. Required host services remain fail-closed.
+
 ## 0.6.0 (source candidate)
 
 - Use the pinned official `@anthropic-ai/claude-agent-sdk@0.3.326` for ordinary
