@@ -41,6 +41,8 @@ if (process.env.CLAUDE_AGENT_SDK_VERSION && args[0] !== 'ultrareview') {
   // query(). A task is not dispatched until the actual user message arrives.
   for await (const line of createInterface({ input: process.stdin })) {
     const message = JSON.parse(line)
+    if (process.env.FAKE_CLAUDE_SEQUENCE_LOG) appendFileSync(process.env.FAKE_CLAUDE_SEQUENCE_LOG,
+      JSON.stringify({ type: message.type, subtype: message.request?.subtype, skipBehaviors: message.request?.skip_behaviors, pid: process.pid }) + '\n')
     if (message.type === 'control_request' && message.request?.subtype === 'initialize') {
       initialize = message.request
       if (process.env.FAKE_CLAUDE_CONTROL_LOG) appendFileSync(process.env.FAKE_CLAUDE_CONTROL_LOG, JSON.stringify(message) + '\n')
@@ -51,8 +53,21 @@ if (process.env.CLAUDE_AGENT_SDK_VERSION && args[0] !== 'ultrareview') {
         continue
       }
       emit({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id,
-        response: { commands: [], agents: Object.keys(initialize.agents ?? {}), models: [], account: {},
+        response: { commands: [], agents: Object.keys(initialize.agents ?? {}),
+          models: process.env.FAKE_CLAUDE_MODELS ? JSON.parse(process.env.FAKE_CLAUDE_MODELS) : [],
+          account: process.env.FAKE_CLAUDE_ACCOUNT ? JSON.parse(process.env.FAKE_CLAUDE_ACCOUNT)
+            : { apiProvider: 'firstParty', subscriptionType: 'pro' },
           ...(process.env.FAKE_CLAUDE_SDK_VERSION === 'missing' ? {} : { claude_code_version: process.env.FAKE_CLAUDE_SDK_VERSION ?? '2.1.326' }) } } })
+    } else if (message.type === 'control_request' && message.request?.subtype === 'get_usage') {
+      if (mode === 'sdk-usage-hang') { await sleep(60000); continue }
+      if (mode === 'sdk-usage-error') {
+        emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: 'private account diagnostic must not escape' } }); continue
+      }
+      const response = process.env.FAKE_CLAUDE_USAGE ? JSON.parse(process.env.FAKE_CLAUDE_USAGE) : {
+        session: { total_cost_usd: 0, total_api_duration_ms: 0, total_duration_ms: 0, total_lines_added: 0, total_lines_removed: 0, model_usage: {} },
+        subscription_type: 'pro', rate_limits_available: true, rate_limits: { extra_usage: { is_enabled: false, monthly_limit: null, used_credits: null, utilization: null } }, behaviors: null,
+      }
+      emit({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response } })
     } else if (message.type === 'user') {
       stdin = JSON.stringify(message)
       break
@@ -124,6 +139,7 @@ const result = (fields) => {
   uuid: randomUUID(),
   usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: resumedId === undefined ? 0 : 7, cache_creation_input_tokens: 0 },
   total_cost_usd: 0.001,
+  ...(process.env.FAKE_CLAUDE_MODEL_USAGE ? { modelUsage: JSON.parse(process.env.FAKE_CLAUDE_MODEL_USAGE) } : {}),
   ...fields,
   }
   if (value.is_error && value.subtype !== 'success') value.errors ??= [value.result ?? 'fixture failure']
@@ -348,7 +364,12 @@ if (mode === 'native-remote') {
   emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'tool_use', id: 'workflow-1', name: 'Workflow', input: {} }] } })
   emit({ type: 'user', session_id: sessionId, message: { content: [{ type: 'tool_result', tool_use_id: 'workflow-1', content: 'remote started' }] }, tool_use_result: { status: 'remote_launched', taskId: 'remote-1', sessionUrl: 'https://claude.ai/code/fixture' } })
 }
-emit({ type: 'assistant', session_id: sessionId, message: { content: [{ type: 'text', text: answer }] } })
+if (process.env.FAKE_CLAUDE_ROOT_MODELS) for (const observed of JSON.parse(process.env.FAKE_CLAUDE_ROOT_MODELS)) {
+  emit({ type: 'assistant', session_id: sessionId, message: { model: observed, content: [] } })
+}
+emit({ type: 'assistant', session_id: sessionId, message: {
+  ...(process.env.FAKE_CLAUDE_NO_MODEL === '1' ? {} : { model: process.env.FAKE_CLAUDE_ROOT_MODEL ?? model }),
+  content: [{ type: 'text', text: answer }] } })
 if (mode === 'progress-hang') await sleep(60_000)
 result({
   subtype: mode === 'limit' ? 'error_max_turns' : 'success',

@@ -63,6 +63,33 @@ try {
     'Reinstall this plugin and its pinned dependencies; the doctor does not download or substitute an SDK.')
 }
 
+if (process.argv.includes('--subscription-only')) {
+  // This path intentionally reuses the public execution preflight. The legacy
+  // static checks below continue to support explicit API users without policy.
+  const options = {}
+  const names = new Map([['--cwd', 'cwd'], ['--model', 'model'], ['--effort', 'effort'], ['--setting-sources', 'settingSources']])
+  try {
+    const args = process.argv.slice(2).filter(arg => arg !== '--subscription-only')
+    for (let i = 0; i < args.length; i += 2) {
+      const name = names.get(args[i]), value = args[i + 1]
+      if (!name || !value || value.startsWith('--')) throw new Error('expected --subscription-only with --model and optional --cwd, --effort, --setting-sources')
+      options[name] = name === 'settingSources' ? value.split(',').filter(Boolean) : value
+    }
+    if (problems.length) throw new Error('the pinned official SDK check failed')
+    const { inspectSubscription } = await import('../lib/machine.js')
+    const result = await inspectSubscription({ protocol: 1, requestId: 'doctor', cwd: process.cwd(), command,
+      timeoutMs: 20000, ...options }, { env: process.env })
+    report(result.ok, 'native subscription admission', JSON.stringify(result.subscription),
+      'Use the configured official CLI account settings to resolve the reported conflict. Unknown or unavailable extra-usage evidence blocks dispatch; this doctor never changes login or billing settings.')
+    report(result.cleanup.confirmed, 'native process cleanup')
+    console.log('\nNo task prompt or model request was submitted. Admission is an observed pre-prompt snapshot, not a billing lock or model-entitlement guarantee.')
+  } catch (error) {
+    report(false, 'native subscription admission', error.message)
+  }
+  console.log(problems.length ? '\nCLAUDE CODE DOCTOR FAILED' : '\nCLAUDE CODE DOCTOR OK')
+  process.exit(problems.length ? 1 : 0)
+}
+
 const version = run(['--version'])
 const versionText = (version.stdout ?? '').trim()
 const parts = versionParts(versionText)

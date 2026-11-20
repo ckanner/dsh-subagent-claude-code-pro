@@ -124,12 +124,25 @@ Provider 支持的接管方式，不代表已经完成真实桌面 UI 验收。
 
 `requested` 记录请求给 CLI 的参数，`configuration.observed` 只记录
 `system/init` 实际报告的内容。成功需要目录、原生权限和会话身份匹配。显式完整
-模型 ID 必须完全一致；`sonnet`、`opus`、`haiku` 三个别名可匹配对应
-`claude-<family>-…` 模型家族，不固定模型版本。其他别名要求原样匹配；无法证明
+模型 ID 必须完全一致；兼容路径上的 `sonnet`、`opus`、`haiku`、`fable` 和
+`best`（Opus）可匹配对应 `claude-<family>-…` 模型家族。其他别名要求原样匹配；无法证明
 别名解析时，应使用完整模型 ID。
+
+可选 `subscription:{version:1,mode:'subscription-only'}` 在同一初始化 SDK 进程的
+用户消息放行前验证原生订阅和额外用量状态，并将别名冻结为已核对的完整 ID。
+未知或开启额外用量均阻断，回执新增过滤后的 `subscription`。
+公开 `inspectSubscription` 复用预检但不发送任务。完整字段、doctor、固定 SDK 契约、
+目录与边界见[订阅准入](subscription.zh.md)。
+
+`configuration.modelEvidence` 分别记录 root assistant 模型观察和累计
+`result.modelUsage` 模型集合。观察到 root 切换会导致失败；累计历史／子 Agent／
+内部请求的模型键不能证明本轮 fallback。`wholeRunVerified` 保持 false，严格策略
+成功必须有匹配冻结模型的 root 观察。
 
 `low/medium/high/xhigh/max` 原样传为 `--effort`，实际支持能力由本地 CLI 决定，
 不支持时明确失败。init 没有提供有效 effort，因此回执不伪造“实际生效的思考级别”。
+环境 effort 覆盖冲突或初始化模型目录明确不支持的档位会在 prompt 前拒绝；
+订阅预检还检查所选原生设置中的 effort cap。
 
 `plan/dontAsk/acceptEdits/auto/bypassPermissions` 是 Claude 工具审批策略，
 **不等价于操作系统或文件系统沙箱**。集成方不能把 plan 宣称为只读隔离，也不能

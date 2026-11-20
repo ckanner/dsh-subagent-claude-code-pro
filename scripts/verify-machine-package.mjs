@@ -36,11 +36,14 @@ try {
   const nativeLog = join(temp, 'native-argv.jsonl')
   const activityLog = join(temp, 'activity-argv.jsonl')
   writeFileSync(join(installed, 'consumer.mjs'),
-    'import { runMachine, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES, MACHINE_ACTIVITY_VERSION, MACHINE_ACTIVITY_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
+    'import { runMachine, inspectSubscription, recoverMachine, runNativeReview, recoverNativeJob, MACHINE_NATIVE_CAPABILITIES, MACHINE_LIFECYCLE_CAPABILITIES, MACHINE_ACTIVITY_VERSION, MACHINE_ACTIVITY_CAPABILITIES, MACHINE_SUBSCRIPTION_CAPABILITIES } from "dsh-subagent-claude-code-pro/machine";\n'
     + 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);\n'
     + 'const sdk = await import("@anthropic-ai/claude-agent-sdk"); if (typeof sdk.query !== "function") throw new Error("official SDK query missing from installed dependency");\n'
     + 'for (const peer of ["@deepseek-ai/schemastery", "@deepseek-ai/dsh-home-paths"]) { try { require.resolve(peer); throw new Error("machine consumer unexpectedly installed " + peer); } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; } }\n'
     + 'const request = ' + JSON.stringify(request) + '; const directory = ' + JSON.stringify(join(temp, 'journal')) + ';\n'
+    + 'if (!MACHINE_SUBSCRIPTION_CAPABILITIES.sameProcessBeforePrompt) throw new Error("subscription capability missing");\n'
+    + 'const inspection = await inspectSubscription({protocol:1,requestId:"packed-inspection",cwd:request.cwd,command:request.command,model:"fable"}, {env:{...process.env,HOME:request.cwd,CLAUDE_CONFIG_DIR:request.cwd}}); if (!inspection.ok || inspection.promptDispatched || inspection.subscription.extraUsageEnabled !== false) throw new Error("installed subscription inspection mismatch: " + JSON.stringify(inspection));\n'
+    + 'const subscription = await runMachine({...request,model:"fable",subscription:{version:1,mode:"subscription-only"}}, {env:{...process.env,HOME:request.cwd,CLAUDE_CONFIG_DIR:request.cwd}}); if (!subscription.ok || subscription.subscription.resolvedModel !== "claude-fable-5-2") throw new Error("installed subscription dispatch mismatch: " + JSON.stringify(subscription));\n'
     + 'if (MACHINE_NATIVE_CAPABILITIES.version !== 1 || typeof runNativeReview !== "function" || typeof recoverNativeJob !== "function") throw new Error("native exports missing");\n'
     + 'const nativeRequest = ' + JSON.stringify(nativeRequest) + ';\n'
     + 'const native = await runMachine({...request, native:nativeRequest}, {env:{...process.env,FAKE_CLAUDE_LOG:' + JSON.stringify(nativeLog) + '}}); if (!native.ok || !native.native.effective.matched) throw new Error("native configuration missing: " + JSON.stringify(native));\n'

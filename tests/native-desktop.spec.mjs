@@ -38,6 +38,9 @@ test('real runtime Config exposes one live native field and strict serialized va
   assert.deepEqual(resolveConfig(Config({native:on})).native,on)
   const serial=JSON.parse(JSON.stringify(Config))
   const rehydrated=new Schema(serial)
+  const subscription={version:1,mode:'subscription-only'}
+  assert.deepEqual(resolveConfig(rehydrated({subscription})).subscription,subscription)
+  assert.throws(()=>rehydrated({subscription:{...subscription,extraUsageEnabled:false}}))
   assert.deepEqual(resolveConfig(rehydrated({native:on})).native,on)
   for(const effort of ['low','medium','high','xhigh','max']) {
     const native=structuredClone(on)
@@ -58,6 +61,20 @@ test('real runtime Config exposes one live native field and strict serialized va
     assert.throws(()=>Config({native}))
     assert.throws(()=>rehydrated({native}))
   }
+})
+
+test('DSH subscription policy uses SDK admission and prevents independent native-job bypass',async t=>{
+  const f=setup(t,{subscription:{version:1,mode:'subscription-only'},model:'fable',reasoningEffort:'high',
+    env:{HOME:makeTempDir('ccpro-desktop-subscription-home-')}})
+  const result=await call(f.tool)
+  assert.equal(logs(f.log).length,1)
+  assert.equal(flag(logs(f.log)[0],'--model'),'claude-fable-5-2')
+  assert.equal(result.subscription.status,'verified')
+  assert.equal(result.subscription.extraUsageEnabled,false)
+  assert.equal(result.modelEvidence.rootMatched,true)
+  assert.ok(result.content.some(block=>block.type==='text'))
+  await assert.rejects(()=>f.nativeTool.execute({action:'review',consent:true}),/subscription-only/)
+  await assert.rejects(()=>f.nativeTool.execute({action:'team',prompt:'blocked'}),/subscription-only/)
 })
 
 test('live Config reference is read for each operation without remounting',()=>{

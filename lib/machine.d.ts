@@ -8,6 +8,23 @@ export class MachineInputError extends Error {}
 export type PermissionMode = 'plan' | 'dontAsk' | 'acceptEdits' | 'auto' | 'bypassPermissions'
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export type SettingSource = 'user' | 'project' | 'local'
+export const MACHINE_SUBSCRIPTION_VERSION: 1
+export const MACHINE_SUBSCRIPTION_CAPABILITIES: Readonly<{ version: 1; nativePreflight: true;
+  sameProcessBeforePrompt: true; extraUsageEvidence: 'sdk-usage-0.3.326'; callerAttestation: false }>
+export interface SubscriptionRequest { version: 1; mode: 'subscription-only' }
+export interface SubscriptionReceipt {
+  version: 1; mode: 'subscription-only'; status: 'verified' | 'blocked' | 'unknown'
+  source: 'sdk-usage-0.3.326'; checkedAt: string | null; apiProvider: 'firstParty' | null
+  subscriptionType: 'pro' | 'max' | 'team' | 'enterprise' | null
+  extraUsageEnabled: boolean | null; resolvedModel: string | null
+  /** Observation immediately before dispatch, not a lock on account billing settings. */
+  scope: 'pre-prompt-snapshot'; diagnostic: string | null
+}
+export interface ModelEvidence {
+  version: 1; rootModels: string[]; usageModels: string[]; rootMatched: boolean | null
+  source: 'assistant.message.model' | null; usageSource: 'result.modelUsage' | null
+  usageScope: 'native-cumulative-including-history-and-auxiliary' | 'unknown'; wholeRunVerified: false
+}
 export interface MachineRequest {
   protocol: 1
   requestId: string
@@ -29,6 +46,7 @@ export interface MachineRequest {
   images?: Array<{ data: string; mimeType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' }>
   outputSchema?: Record<string, unknown>
   maxBudgetUsd?: number
+  subscription?: SubscriptionRequest
 }
 export const MACHINE_ACTIVITY_VERSION: 1
 export const MACHINE_ACTIVITY_CAPABILITIES: Readonly<{ version: 1; metadataOnly: true; coalesced: true; rootAndChildren: true }>
@@ -90,8 +108,10 @@ export interface MachineReceipt {
     source: 'cli-init' | null
     observed: { cwd: string | null; model: string | null; permissionMode: string | null; cliVersion: string | null } | null
     matched: boolean
+    modelEvidence?: ModelEvidence
   }
   native?: NativeReceipt
+  subscription?: SubscriptionReceipt
   structured?: unknown
   output: Array<{ type: 'text'; text: string }>
   images?: Array<{ data: string; mimeType: string }>
@@ -117,6 +137,14 @@ export interface MachineReceipt {
 }
 export function parseMachineRequest(input: unknown): Readonly<MachineRequest>
 export function runMachine(input: MachineRequest, runtime?: MachineRuntime): Promise<MachineReceipt>
+export type SubscriptionInspectionRequest = Pick<MachineRequest, 'protocol' | 'requestId' | 'cwd' | 'command' | 'model' | 'effort' | 'settingSources' | 'timeoutMs' | 'disposeGraceMs'>
+export interface SubscriptionInspectionReceipt {
+  protocol: 1; type: 'subscription-inspection'; requestId: string; ok: boolean
+  subscription: SubscriptionReceipt; promptDispatched: false; cleanup: { confirmed: boolean }
+  failure: MachineReceipt['failure']
+}
+export function inspectSubscription(input: SubscriptionInspectionRequest,
+  runtime?: Pick<MachineRuntime, 'env' | 'credentialEnv' | 'signal'>): Promise<SubscriptionInspectionReceipt>
 export interface MachineLifecycleEvent {
   lifecycleVersion: 1
   type: 'lifecycle'
