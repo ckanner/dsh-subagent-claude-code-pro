@@ -1,7 +1,7 @@
 {
   "name": "dsh-subagent-claude-code-pro",
   "version": "0.6.0",
-  "description": "DeepSeek Harness plugin: official Claude Agent SDK with your local runtime \u2014 per-call model and effort, durable sessions, and multimodal input/output.",
+  "description": "DeepSeek Harness plugin: official Claude Agent SDK with your local runtime — per-call model and effort, durable sessions, and multimodal input/output.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
