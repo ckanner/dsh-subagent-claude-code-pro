@@ -70,6 +70,19 @@ result 或迭代结束本身不是清理证据。machine protocol、lifecycle ve
 `settingSources` 默认 `user/project/local`；显式空数组会传递
 `--setting-sources ''`，不会意外恢复默认设置。
 
+可选 `images` 使用规范 base64 `data` 与 `mimeType`（`image/png`、`image/jpeg`、
+`image/gif` 或 `image/webp`）。公开解析器最多接受 20 张、encoded 总计 32 MiB；
+调用方可以设置更窄的限制。SDK 按输入顺序在 prompt 之后接收图片内容块。
+解析器检查传输结构，不解码栅格内容；处理文件的宿主应在调用前验证真实格式与尺寸。
+
+有非空图片输入时，`requested.inputImages` 按顺序记录
+`{version: 1, images: [{mimeType, sha256, bytes}]}`，其中小写 SHA-256 与字节数
+由请求的实际解码字节计算。同份 metadata 会在恢复 journal 创建时写入
+`context.inputImages`，早于任何派发检查点。两处均不保存图片内容、路径或 prompt。
+宿主可以在 pending 或 terminal 恢复时核对 manifest，无需重新读取原图。
+恢复只接受原有 request/run 身份与 journal 路径，不能替换附件或派发新 prompt。
+没有图片的请求继续省略这些字段。
+
 ## 原生 CLI 与 Desktop 历史
 
 历史持久化、客户端发现和允许继续操作是三个独立事实。persistent query 使用已安装
@@ -124,12 +137,25 @@ Provider 支持的接管方式，不代表已经完成真实桌面 UI 验收。
 
 `requested` 记录请求给 CLI 的参数，`configuration.observed` 只记录
 `system/init` 实际报告的内容。成功需要目录、原生权限和会话身份匹配。显式完整
-模型 ID 必须完全一致；`sonnet`、`opus`、`haiku` 三个别名可匹配对应
-`claude-<family>-…` 模型家族，不固定模型版本。其他别名要求原样匹配；无法证明
+模型 ID 必须完全一致；兼容路径上的 `sonnet`、`opus`、`haiku`、`fable` 和
+`best`（Opus）可匹配对应 `claude-<family>-…` 模型家族。其他别名要求原样匹配；无法证明
 别名解析时，应使用完整模型 ID。
+
+可选 `subscription:{version:1,mode:'subscription-only'}` 在同一初始化 SDK 进程的
+用户消息放行前验证原生订阅和额外用量状态，并将别名冻结为已核对的完整 ID。
+未知或开启额外用量均阻断，回执新增过滤后的 `subscription`。
+公开 `inspectSubscription` 复用预检但不发送任务。完整字段、doctor、固定 SDK 契约、
+目录与边界见[订阅准入](subscription.zh.md)。
+
+`configuration.modelEvidence` 分别记录 root assistant 模型观察和累计
+`result.modelUsage` 模型集合。观察到 root 切换会导致失败；累计历史／子 Agent／
+内部请求的模型键不能证明本轮 fallback。`wholeRunVerified` 保持 false，严格策略
+成功必须有匹配冻结模型的 root 观察。
 
 `low/medium/high/xhigh/max` 原样传为 `--effort`，实际支持能力由本地 CLI 决定，
 不支持时明确失败。init 没有提供有效 effort，因此回执不伪造“实际生效的思考级别”。
+环境 effort 覆盖冲突或初始化模型目录明确不支持的档位会在 prompt 前拒绝；
+订阅预检还检查所选原生设置中的 effort cap。
 
 `plan/dontAsk/acceptEdits/auto/bypassPermissions` 是 Claude 工具审批策略，
 **不等价于操作系统或文件系统沙箱**。集成方不能把 plan 宣称为只读隔离，也不能

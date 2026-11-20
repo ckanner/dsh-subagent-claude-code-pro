@@ -39,6 +39,22 @@ test('public package export validates one explicit machine request without start
   assert.deepEqual(f.calls(), [])
 })
 
+test('large canonical image data crosses the public parser and real SDK without regex stack overflow', async () => {
+  const f = fixture()
+  const data = Buffer.alloc(4 * 1024 * 1024, 37).toString('base64')
+  const image = { mimeType: 'image/png', data }
+  assert.deepEqual(parseMachineRequest({ ...f.request, images: [image] }).images, [image])
+  for (const invalid of ['A', 'AA=A', 'AA==\n', 'AB==', 'AAB=', '=AAA', 'AAAA===']) {
+    assert.throws(() => parseMachineRequest({ ...f.request, images: [{ ...image, data: invalid }] }), MachineInputError)
+  }
+  assert.deepEqual(f.calls(), [], 'validation never starts the native CLI')
+  const receipt = await f.run({ images: [image] })
+  assert.equal(receipt.ok, true, JSON.stringify(receipt.failure))
+  assert.deepEqual(f.calls()[0].userContent[1], {
+    type: 'image', source: { type: 'base64', media_type: 'image/png', data },
+  })
+})
+
 test('validation rejects ambiguous sessions, native policy names, unsafe fields and bounds before dispatch', () => {
   const f = fixture()
   const invalid = [null, [], {}, { ...f.request, protocol: 2 }, { ...f.request, unknown: true },
@@ -241,7 +257,7 @@ test('known model aliases match only their canonical family and full ids match e
   const f = fixture()
   for (const [model, observed, expected] of [
     ['sonnet', 'claude-sonnet-4-6', true], ['opus', 'claude-opus-9-9', true], ['haiku', 'claude-haiku-4-5', true],
-    ['sonnet', 'claude-opus-4-6', false], ['fable', 'claude-fable-1', false],
+    ['sonnet', 'claude-opus-4-6', false], ['fable', 'claude-fable-5-2', true], ['fable', 'claude-opus-5-5', false],
     ['claude-sonnet-4-6', 'claude-sonnet-4-6', true], ['claude-sonnet-4-6', 'claude-sonnet-4-7', false],
     ['fixture-model', 'other-model', false], [undefined, 'native-default-model', true],
   ]) {

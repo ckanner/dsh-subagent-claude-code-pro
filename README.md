@@ -190,10 +190,17 @@ tools and Codex Pro use.
 ### Authentication and the CLI's credential store
 
 The plugin never reads, creates, refreshes, or rewrites credentials; the native
-runtime owns authentication. For this third-party SDK integration, configure
-authorized API credentials explicitly, for example `env.ANTHROPIC_API_KEY`.
-Other native authentication arrangements require the applicable authorization;
-using the SDK does not grant subscription eligibility.
+runtime owns authentication. To use the existing official CLI login with a
+subscription-only policy, configure `subscription: {version: 1, mode:
+subscription-only}` and an explicit model. Each invocation checks the initialized
+native account and requires native extra usage to be disabled **before** sending
+its prompt. Unknown status blocks dispatch; no caller-supplied billing boolean,
+API/credits fallback or account mutation is used. See the [complete policy,
+doctor, model binding and evidence contract](docs/subscription.md) ([中文](docs/subscription.zh.md)).
+
+Existing explicit API users may continue to omit this policy and configure
+authorized credentials such as `env.ANTHROPIC_API_KEY`. SDK installation alone
+does not establish subscription eligibility or model entitlement.
 
 Run `node scripts/doctor.mjs` to check the selected executable's `auth status`.
 Doctor reports only whether native authentication is available, without reading
@@ -227,6 +234,7 @@ configuration explicitly.
     model: sonnet                    # optional default
     reasoningEffort: high            # optional default
     settingSources: [user, project, local]
+    # subscription: {version: 1, mode: subscription-only} # native account, extra usage disabled
     env: {}                          # only the entries the child really needs
     disposeGraceMs: 3000
 ```
@@ -273,6 +281,17 @@ API authentication without requiring subscription tokens and never opens the
 keychain or credential files. Exit code is non-zero when a prerequisite fails.
 These are static checks; every real query still verifies its own initialize
 response before task input. Authentication status is not a paid model test.
+
+For the same no-prompt subscription admission used by execution:
+
+```sh
+node scripts/doctor.mjs --subscription-only --model claude-opus-5-5 --effort high --cwd /absolute/worktree
+```
+
+This path uses the pinned SDK's native account/usage controls, not a `/usage`
+prompt. The observed extra-usage status is a pre-prompt snapshot, not a billing
+lock or guarantee that a selected model is included. See [subscription
+admission](docs/subscription.md) for the exact response contract and limits.
 
 ## Diagnostics
 
