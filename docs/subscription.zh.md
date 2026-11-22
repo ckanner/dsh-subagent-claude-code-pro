@@ -1,8 +1,11 @@
 # 原生订阅准入
 
-本源码候选在现有“官方 Agent SDK → 配置的本机 Claude Code”链路上增加可选的
+已发布的 **0.7.0** 包在现有“官方 Agent SDK → 配置的本机 Claude Code”链路上增加可选的
 `subscription-only` 策略。插件不实现 OAuth、不导出 token、不更改账号设置、不替换
 原生程序，也不自动转 API。没有设置策略的既有调用继续保留显式 API／原生认证兼容行为。
+
+发布状态与运行时验收分别核实，详见[发行证据（英文）](sdk-migration-validation.md#publication-follow-up--2026-11-22)。
+下文的 prompt 前检查和计费限制保持不变。
 
 ## DSH 配置
 

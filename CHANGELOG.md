@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.7.0 (subscription source candidate)
+Release dates below use the official npm registry's UTC publication dates.
+The 0.5.0–0.7.0 release status was rechecked on 2026-11-22; see the
+[publication evidence](docs/sdk-migration-validation.md#publication-follow-up--2026-11-22).
+Registry publication is separate from source validation, installed versions and
+live account/model acceptance.
+
+## 0.7.0 (2026-11-22)
 
 - Persist ordered input-image SHA-256, MIME type and decoded-byte identities in
   machine receipts and pre-dispatch journals without retaining image contents;
@@ -25,12 +31,12 @@
   no live account/model acceptance, npm publication or account-setting change
   is implied by deterministic fixture tests.
 
-## 0.6.1
+## 0.6.1 (2026-11-20)
 
 - Accept the DSH 0.2.1-rc.5 through 0.3 compatibility window for the host
   `@deepseek-ai/dsh-home-paths` peer. Required host services remain fail-closed.
 
-## 0.6.0 (source candidate)
+## 0.6.0 (2026-11-17)
 
 - Use the pinned official `@anthropic-ai/claude-agent-sdk@0.3.326` for ordinary
   machine and DSH delegations, including background work. Preserve the configured
@@ -44,12 +50,13 @@
   reports their expected nonzero exit. Apply the same facts to recovery receipts.
 - Keep native Review and interactive Team on their explicit CLI entry points.
   Document SDK installation, local configuration and authorized authentication
-  as separate concerns. No npm publication or user-installation upgrade is implied.
+  as separate concerns. Source validation does not establish registry publication
+  or a user-installation upgrade; publication is recorded separately above.
 - Update doctor to verify the exact SDK and compatible native runtime, accept
   native API authentication, and use only `auth status` without reading macOS
   keychain tokens or credential files.
 
-## 0.5.3 (source candidate)
+## 0.5.3 (2026-11-17)
 
 - Reject persistent creation/resume and interactive teams before CLI dispatch
   when the forwarded `CLAUDE_CODE_SKIP_PROMPT_HISTORY` enables native history
@@ -64,10 +71,10 @@
   requirements and exclusive session ownership; readable names alone do not
   register sessions in the Desktop sidebar.
 - Verify the history-suppression defect with Claude Code 2.1.325 against a local
-  offline protocol fixture. This candidate is not an npm publication, live-model
-  run or Desktop UI acceptance claim.
+  offline protocol fixture. The source-candidate checks did not include a
+  live-model run or Desktop UI acceptance; publication is recorded separately above.
 
-## 0.5.2 (source candidate)
+## 0.5.2 (2026-11-16)
 
 - Add public metadata-only `onActivity` with bounded event-driven coalescing across root and child streams. Native task progress remains observable even when the durable state ledger deduplicates unchanged states.
 - Exclude ambient task identities and later unmarked progress from activity and native completion. Forward startup hook activity only for a caller-established session ID; keep the first timeout/cancellation cause stable during cleanup.
@@ -77,9 +84,9 @@
 - Probe the local CLI help through owned process supervision before delivering a prompt; require partial messages and foreground subagent forwarding, preserve one wall budget and reject unsupported CLIs without replay or leaked diagnostic text.
 - Forward foreground, PTC and background query activity to the optional Flywheel host extension without fabricating DSH assistant messages or heartbeats.
 - Name fresh persistent machine sessions and interactive teams, with readable workspace-name fallbacks that keep private prompt text out of session lists. Explicit descriptions and session names take precedence; resumes retain their existing name and ephemeral queries remain ephemeral.
-- Preserve native controls, credentials, dispatch ACKs, unknown outcomes, terminal receipts and owned process cleanup. This is an offline-verified source candidate, not an npm publication or real-model acceptance claim.
+- Preserve native controls, credentials, dispatch ACKs, unknown outcomes, terminal receipts and owned process cleanup. The source candidate was verified offline; those checks do not establish registry publication or real-model acceptance.
 
-## 0.5.1 (unreleased)
+## 0.5.1 (2026-11-15)
 
 ### Fixed
 
@@ -87,14 +94,14 @@
 - Apply the existing `modelSelection:false` protection to configured child effort values as well as models, while retaining explicit all-off behavior.
 - Document separate child model/effort examples, omitted-field CLI behavior and environment/organization precedence without claiming effective child effort attestation.
 
-## 0.5.0 (source candidate)
+## 0.5.0 (2026-11-14)
 
 - Add the plugin's live native Config field and an actual Plugins-row browser configuration page with whole-value set/reset, revision fencing and retained drafts after conflicts.
 - Expose inherited/per-call/off native controls through the existing PTC delegation path, actual CLI argv/settings/environment, native events, completion checks and configuration-aware session reuse. Preserve structured JSON in foreground and background results.
 - Keep configured child/advisor model defaults under modelSelection:false, reject call-level model changes or removal while still enabled, and keep child permission choices within the root policy.
 - Add the separate PTC native-job tool: explicit-consent remote review and actual interactive Teams always receive owned DSH background job ids; recover/control use private durable mapping and original machine journals, with real cancellation and truthful failed/killed outcomes.
 - Match the current DSH supported schema vocabulary so PTC SDK argument and job-id types remain visible; validate actual published/current schema codegen, real serialized Config, React settings and CLI/job fixtures in CI.
-- Keep the public machine import independent of optional DSH desktop peers and verify an installed consumer without those peers. No new paid account acceptance or npm publication is claimed.
+- Keep the public machine import independent of optional DSH desktop peers and verify an installed consumer without those peers. These checks do not establish new paid-account acceptance; publication is recorded separately above.
 
 - Add optional native Agent/Workflow/advisor controls and explicit process-scoped off controls while preserving protocol 1 and existing account behavior.
 - Track native child/task/run identities, models and deduplicated usage metadata without confusing child results with root completion.
@@ -118,8 +125,8 @@
 - Preserve native process dispatch and add execution.turnDispatch for the
   model-request boundary. Costs and incomplete usage keep their original meaning.
 - Add real process-group SIGKILL and ACK rejection regression tests, typed public
-  contracts and bilingual lifecycle documentation. This remains unpublished
-  source; it does not update installed CLI/desktop accounts or claim live testing.
+  contracts and bilingual lifecycle documentation. The published package does not
+  update existing CLI/desktop installations automatically or establish new live testing.
 
 ## 0.3.2 (machine API precursor, shipped in 0.4.0)
 

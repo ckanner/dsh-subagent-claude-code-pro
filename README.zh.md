@@ -1,12 +1,12 @@
 # dsh-subagent-claude-code-pro
 
-**0.4.0：**新增公开、带类型的
-[`/machine` API](docs/machine-api.zh.md)，供调度器使用显式会话身份、实际配置
-证据、逐次用量与进程组清理回执，以及[持久化检查点与只读恢复](docs/machine-lifecycle.zh.md)。
-不会虚构 Claude prompt 发送前的配置握手。0.4.0 已发布到 npm；下文的桌面版本及
-真实账号验收记录对应 0.3.1。
-
 [English](README.md) | 中文
+
+**已发布版本：0.7.0。** npm 包已包含官方 Agent SDK 迁移、公开且带类型的
+[`/machine` API](docs/machine-api.zh.md)、[持久化检查点与只读恢复](docs/machine-lifecycle.zh.md)，
+以及可选的[原生订阅准入](docs/subscription.zh.md)。2026-11-22 已核实 registry
+发布状态，详见[发行证据（英文）](docs/sdk-migration-validation.md#publication-follow-up--2026-11-22)。
+发布状态不代表用户 profile 已升级，也不扩大下文真实账号验收记录的适用范围。
 
 DeepSeek Harness 的 Claude Code 委派插件：从 **0.6.0** 起，普通委派通过官方
 **`@anthropic-ai/claude-agent-sdk@0.3.326`** 调用配置指定的本地 `claude`
@@ -19,10 +19,11 @@ DeepSeek Harness 的 Claude Code 委派插件：从 **0.6.0** 起，普通委派
 - 单次委派的 deadline、调用方取消、进程组清理；
 - 诊断日志 `~/.dsh/claude-code-pro.log`（插件没有会话可读的日志面）。
 
-0.6.0 迁移为源码候选；精确 SDK／原生版本、独立审查及真实历史验证见
-[SDK 验证记录（英文）](docs/sdk-migration-validation.md)。
+0.6.0 引入的 SDK 迁移已包含在发布的 0.7.0 包中。
+[SDK 验证记录（英文）](docs/sdk-migration-validation.md)保留原候选的精确 SDK／原生版本、
+独立审查和本地历史检查，后续 registry 发布验证单独记录。
 
-> **状态**：`0.3.1` 是首个完成真实环境全量验证的版本：文本、图片/PDF 输入、
+> **历史真实环境验收（0.3.1）**：`0.3.1` 是首个完成真实环境全量验证的版本：文本、图片/PDF 输入、
 > 图片输出、`output_schema`、后台任务、Session（含 fork）均已用本地 `claude`
 > CLI 与真实 DSH 会话跑通。证据见
 > [docs/live-verification.zh.md](docs/live-verification.zh.md) 与 `CHANGELOG.md`。
@@ -78,7 +79,7 @@ dsh plugin --profile <profile> add dsh-subagent-claude-code-pro
 
 Desktop 应用的托管 profile 用应用内的**插件**页 →「添加插件」→ 输入包名
 `dsh-subagent-claude-code-pro` 安装；插件管理器执行同一个 pnpm 安装操作。安装后
-profile 的依赖记录是版本号（例如 `0.3.1`），不是本地路径。
+profile 的依赖记录是版本号（例如 `0.7.0`），不是本地路径。
 
 bundle 会插入一条 root row，并在 `presets` 列出的 preset 会话里注册
 `subagent_claude_code` 工具。工具名与官方一致，因此这个 per-Agent 注册会遮蔽官方

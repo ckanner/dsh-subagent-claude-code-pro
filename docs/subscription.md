@@ -1,10 +1,14 @@
 # Native subscription admission
 
-This source candidate adds an **opt-in** `subscription-only` policy to the existing
-official Agent SDK → configured local Claude Code execution path. The plugin
+The published **0.7.0** package adds an **opt-in** `subscription-only` policy to
+the existing official Agent SDK → configured local Claude Code execution path. The plugin
 does not implement OAuth, export tokens, change account settings, replace the
 executable, or fall back to an API account. Existing callers that omit the policy
 keep their explicit API/native authentication behavior.
+
+Publication was verified separately from runtime acceptance; see the
+[release evidence](sdk-migration-validation.md#publication-follow-up--2026-11-22).
+The pre-prompt checks and billing limitations below remain unchanged.
 
 ## DSH configuration
 

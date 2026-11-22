@@ -1,8 +1,35 @@
 # Official Agent SDK migration — 2026-11-17
 
-This record covers the **0.6.0 source candidate**, based on the 0.5.3 history
-fix at `bd748d8a4dae93f2ed090e2a4edff7dd6fda431e`. It does not assert npm
+The original record below covers the **0.6.0 source candidate**, based on the
+0.5.3 history fix at `bd748d8a4dae93f2ed090e2a4edff7dd6fda431e`. It does not assert npm
 publication, an upgrade of an existing installation, or a live desktop/account test.
+
+## Publication follow-up — 2026-11-22
+
+The official npm registry now reports **0.7.0** as published. Its `gitHead` is
+[`e8dcd1428a10572dbffb85bd199718b85a51c29a`](https://github.com/ckanner/dsh-subagent-claude-code-pro/commit/e8dcd1428a10572dbffb85bd199718b85a51c29a),
+the merged source containing the SDK migration and subscription admission.
+This is a later publication check, not a replacement for the original results.
+
+Verification command:
+
+```sh
+npm view dsh-subagent-claude-code-pro@0.7.0 version gitHead dist.integrity dist.tarball time --json --registry=https://registry.npmjs.org
+```
+
+| Registry fact | Observed value |
+| --- | --- |
+| Package | `dsh-subagent-claude-code-pro@0.7.0` |
+| Publication time (UTC) | `2026-11-22T06:33:02.374Z` |
+| Integrity | `sha512-npT2lkTDtX5qBPqeEvnWYFD32zwHAL9T11VZzMH58i2O7JvHs7Hbur33u8U4nILiHZk+NynDSO7XqowX+TeeGQ==` |
+| Archive | [Official npm tarball](https://registry.npmjs.org/dsh-subagent-claude-code-pro/-/dsh-subagent-claude-code-pro-0.7.0.tgz) |
+
+The registry also reports publication dates for the earlier 0.5.0–0.6.1 releases;
+the changelog now records those dates instead of presenting them as unpublished
+candidates. Their original source-validation records and limits remain intact.
+This check made no model request, changed no account settings and did not inspect
+or upgrade a user's installation. Publication does not establish current account
+eligibility, actual billed cost or new desktop/model acceptance.
 
 ## Why this boundary
 
