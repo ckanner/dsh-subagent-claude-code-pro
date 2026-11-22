@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0 (subscription source candidate)
+
+- Persist ordered input-image SHA-256, MIME type and decoded-byte identities in
+  machine receipts and pre-dispatch journals without retaining image contents;
+  read-only recovery exposes the original manifest and never accepts replacements.
+
+- Validate large canonical base64 image inputs without recursive regular-expression
+  stack overflow; exercise a 4 MiB decoded attachment through the real pinned SDK.
+  Keep the existing public media formats, count/encoded-size limits and text-only behavior.
+- Add opt-in versioned native subscription-only admission to machine, DSH/PTC
+  and background calls. The pinned official SDK checks the same initialized
+  local CLI's account and public usage control before releasing any task prompt;
+  explicit disabled extra usage is required, unknown/enabled status blocks.
+- Expose no-prompt `inspectSubscription` and matching doctor mode. Preserve
+  filtered environment, native settings, owned cleanup and lifecycle recovery;
+  keep legacy explicit API authentication when the policy is absent. Refuse
+  independent Review/Team dispatch that cannot satisfy this admission contract.
+- Freeze subscription aliases including Fable 5.2, reject known model fallback,
+  fast-mode and effort conflicts, and retain current-stream root model evidence
+  separately from cumulative history/auxiliary `modelUsage` observations.
+- Keep actual billed cost unknown and redact account identifiers and balances.
+  Document the experimental SDK contract and pre-prompt snapshot limitations;
+  no live account/model acceptance, npm publication or account-setting change
+  is implied by deterministic fixture tests.
+
 ## 0.6.1
 
 - Accept the DSH 0.2.1-rc.5 through 0.3 compatibility window for the host

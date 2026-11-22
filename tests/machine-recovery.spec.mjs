@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import childProcess from 'node:child_process'
 import { syncBuiltinESMExports } from 'node:module'
 import { MACHINE_LIFECYCLE_CAPABILITIES, MACHINE_LIFECYCLE_VERSION, recoverMachine, runMachine } from 'dsh-subagent-claude-code-pro/machine'
@@ -50,6 +51,7 @@ test('Claude advertises its actual handshake capability and persists pre-prompt 
       }
     } })
   assert.equal(receipt.ok, true, JSON.stringify(receipt))
+  assert.equal(receipt.requested.inputImages, undefined)
   assert.equal(receipt.execution.turnDispatch, 'accepted')
   assert.deepEqual(events.map(e => e.event), ['dispatch-intent', 'dispatch-possible', 'terminal', 'cleanup-confirmed'])
   assert.deepEqual(events.map(e => e.sequence), [1, 2, 3, 4])
@@ -61,8 +63,44 @@ test('Claude advertises its actual handshake capability and persists pre-prompt 
   const before = statSync(join(journal, 'machine-journal.json')).mtimeMs
   const recovered = await recoverMachine({ protocol: 1, requestId: request.requestId, runId: receipt.runId, recoveryDirectory: journal })
   assert.deepEqual(recovered.receipt, receipt)
+  assert.equal(recovered.context, undefined)
   assert.equal(statSync(join(journal, 'machine-journal.json')).mtimeMs, before)
   assert.equal(calls(capture).length, 1)
+})
+
+test('image identity is durable before dispatch and read-only recovery cannot substitute another attachment', async t => {
+  const { request, capture, journal } = fixture(t)
+  const bytes = readFileSync(new URL('./fixtures/multimodal-reference.png', import.meta.url))
+  const images = [{ mimeType: 'image/png', data: bytes.toString('base64') }]
+  const manifest = { version: 1, images: [{ mimeType: 'image/png',
+    sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }] }
+  const receipt = await runMachine({ ...request, images }, { recoveryDirectory: journal,
+    env: { ...process.env, FAKE_CLAUDE_LOG: capture }, onLifecycle: async event => {
+      const recovered = await recoverMachine({ protocol: 1, requestId: request.requestId,
+        runId: event.runId, recoveryDirectory: journal })
+      assert.deepEqual(recovered.context, { inputImages: manifest })
+      if (event.event === 'dispatch-intent') {
+        assert.equal(recovered.status, 'pending')
+        assert.equal(calls(capture).length, 0)
+      }
+    } })
+  assert.equal(receipt.ok, true, JSON.stringify(receipt.failure))
+  assert.deepEqual(receipt.requested.inputImages, manifest)
+  assert.deepEqual(calls(capture)[0].userContent[1], {
+    type: 'image', source: { type: 'base64', media_type: 'image/png', data: images[0].data },
+  })
+  const input = { protocol: 1, requestId: request.requestId, runId: receipt.runId, recoveryDirectory: journal }
+  const before = readFileSync(join(journal, 'machine-journal.json'), 'utf8')
+  assert.equal(before.includes(images[0].data), false, 'journal retains no input image contents')
+  assert.equal(JSON.stringify(JSON.parse(before).body.context).includes(request.prompt), false, 'image identity contains no prompt text')
+  const recovered = await recoverMachine(input)
+  assert.deepEqual(recovered.receipt.requested.inputImages, manifest)
+  assert.deepEqual(recovered.context, { inputImages: manifest })
+  await assert.rejects(recoverMachine({ ...input, images: [{ ...images[0], data: 'AA==' }] }), /invalid machine recovery/)
+  await assert.rejects(runMachine({ ...request, images: [{ ...images[0], data: 'AA==' }] },
+    { recoveryDirectory: journal, env: { ...process.env, FAKE_CLAUDE_LOG: capture } }), /supervisor/)
+  assert.equal(readFileSync(join(journal, 'machine-journal.json'), 'utf8'), before)
+  assert.equal(calls(capture).length, 1, 'recovery and refused replacement never replay the prompt')
 })
 
 for (const stage of ['dispatch-intent', 'dispatch-possible']) {

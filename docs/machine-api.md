@@ -85,6 +85,23 @@ Raw ultrareview JSON remains limited to 64 MiB and capability help to 256 KiB.
 `settingSources` defaults to `user`, `project`, `local`;
 an explicit empty array is forwarded as `--setting-sources ''`.
 
+Optional `images` carry canonical base64 `data` and `mimeType` (`image/png`,
+`image/jpeg`, `image/gif`, or `image/webp`). The public parser accepts up to 20
+images and 32 MiB of encoded data in total; consumers may enforce narrower
+limits. The SDK receives ordered image content blocks after the prompt. The
+parser validates the envelope, not the raster contents; hosts handling files
+must validate their content and dimensions before calling this API.
+
+For nonempty image input, `requested.inputImages` records
+`{version: 1, images: [{mimeType, sha256, bytes}]}` in order. Each lower-case
+SHA-256 and byte count comes from the actual decoded request bytes. The same
+metadata is persisted at `context.inputImages` when the recovery journal is
+created, before any dispatch checkpoint. Neither location stores image data,
+paths, or prompt text. A host can compare the manifest during pending or
+terminal recovery without reading the original files again. Recovery accepts
+only the original request/run identity and journal path; it cannot replace an
+attachment or dispatch another prompt. Calls without images omit this metadata.
+
 ## Native CLI and Desktop history
 
 Persistence, discovery and permission to continue are separate facts. A persistent
@@ -251,14 +268,31 @@ stream API. Without that service, desktop behavior is unchanged.
 fields actually reported in `system/init`. Success requires the physical
 working directory, native permission mode and session identity to match.
 An explicitly requested full model ID must match exactly. The aliases
-`sonnet`, `opus`, and `haiku` may match their corresponding `claude-<family>-…`
-canonical IDs without hardcoding a model version. Other aliases require an
+`sonnet`, `opus`, `haiku`, `fable` and `best` (Opus) may match their corresponding `claude-<family>-…`
+canonical IDs on the compatible path. Other aliases require an
 exact reported match; use a full ID when an alias cannot be verified.
+
+The optional `subscription: {version: 1, mode: 'subscription-only'}` policy
+freezes aliases to reviewed canonical IDs and checks native subscription and
+extra-usage evidence in the initialized SDK process **before** releasing its
+user message. It returns a sanitized `subscription` receipt and rejects unknown
+or enabled extra usage. `inspectSubscription` exposes the same preflight without
+a task prompt. See [subscription request, doctor and evidence](subscription.md)
+for its exported types, exact SDK contract, model catalog and limitations.
+
+`configuration.modelEvidence` records root assistant model observations and the
+separate cumulative `result.modelUsage` model set. A root switch fails the run;
+cumulative history/subagent/internal model entries do not prove a current-turn
+fallback. `wholeRunVerified` remains false. Strict-policy success requires a root
+observation matching the frozen target.
 
 The requested effort is forwarded as `--effort`, including `low`, `medium`,
 `high`, `xhigh`, or `max`. The CLI owns model/effort availability; unsupported
 settings fail explicitly. Its init event does not expose an effective effort,
-so the receipt does not invent one.
+so the receipt does not invent one. A conflicting environment effort override,
+or unsupported effort explicitly reported by the initialized native model
+catalog, is rejected before sending a prompt; subscription preflight also checks
+selected native settings for effort caps.
 
 Native `plan`, `dontAsk`, `acceptEdits`, `auto`, and `bypassPermissions` control
 Claude Code's tool approvals. **They do not prove an OS filesystem sandbox.**

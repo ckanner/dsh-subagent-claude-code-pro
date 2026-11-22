@@ -160,9 +160,15 @@ worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code �
 
 ### 认证与 CLI 凭据存储
 
-插件不读取、创建、刷新或改写凭据，由原生程序管理认证。第三方 SDK 集成应显式
-配置获准使用的 API 凭据，例如 `env.ANTHROPIC_API_KEY`；其他原生认证方式须满足
-其适用授权，使用 SDK 本身不会授予订阅使用资格。
+插件不读取、创建、刷新或改写凭据，由原生程序管理认证。使用官方 CLI 的本机登录时，
+配置 `subscription: {version: 1, mode: subscription-only}` 和显式模型。每次调用在
+prompt 前检查同一初始化进程的原生账号与 usage，必须明确额外用量已关闭才能派发；
+未知状态阻断，不接受调用方计费布尔声明，不自动转 API／credits，也不改账号。
+详见[完整策略、doctor、模型绑定与证据契约](docs/subscription.zh.md)
+（[English](docs/subscription.md)）。
+
+既有显式 API 用户不设置此策略即可继续使用获准的 `env.ANTHROPIC_API_KEY` 等配置。
+安装 SDK 本身不建立订阅资格或模型权益。
 
 运行 `node scripts/doctor.mjs` 检查所选程序的 `auth status`。Doctor 只报告原生
 认证是否可用，不读取钥匙串，不输出 token、token 长度或原始认证响应；修复建议
@@ -192,6 +198,7 @@ worker 里执行（`job_output` 取结果、`job_kill` 取消）。Claude Code �
     model: sonnet                    # 可选默认
     reasoningEffort: high            # 可选默认
     settingSources: [user, project, local]
+    # subscription: {version: 1, mode: subscription-only} # 原生账号，额外用量关闭
     env: {}                          # 仅传子进程真正需要的变量
     disposeGraceMs: 3000
 ```
@@ -231,6 +238,15 @@ node scripts/doctor.mjs
 `claude auth status` 和所需 CLI flags。原生 API 认证不要求另有订阅 token，
 也不打开钥匙串或凭据文件。前提不满足时退出码非 0。这些只是静态检查，每次实际
 查询仍会在任务输入前核对自己的 initialize 响应；认证状态不等于付费模型验收。
+
+检查与执行完全一致的无 prompt 订阅准入：
+
+```sh
+node scripts/doctor.mjs --subscription-only --model claude-opus-5-5 --effort high --cwd /absolute/worktree
+```
+
+这条路径使用固定 SDK 的原生账号／usage 控制，不发送 `/usage` prompt。结果是派发前
+观察到的状态，不是计费锁或模型包含权益保证；完整边界见[订阅准入](docs/subscription.zh.md)。
 
 ## 诊断
 
