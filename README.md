@@ -2,13 +2,13 @@
 
 English | [中文](README.zh.md)
 
-**0.4.0:** a public, typed
-[`/machine` API](docs/machine-api.md) now supports orchestration with explicit
-session identity, observed configuration, per-invocation usage, and confirmed
-process-group cleanup. It also provides durable pre-prompt checkpoints and
-[read-only recovery](docs/machine-lifecycle.md), without inventing a Claude
-pre-prompt configuration handshake. 0.4.0 is now published to npm; the desktop behavior and live-verification
-record below still refer to 0.3.1.
+**Published release: 0.7.0.** The npm package includes the official Agent SDK
+migration, the public typed [`/machine` API](docs/machine-api.md), durable
+checkpoints and [read-only recovery](docs/machine-lifecycle.md), plus opt-in
+[native subscription admission](docs/subscription.md). Registry publication was
+verified on 2026-11-22; see the [release evidence](docs/sdk-migration-validation.md#publication-follow-up--2026-11-22).
+Publication does not establish the version installed in a user's profile or
+extend the live-account validation recorded below.
 
 A Claude Code delegation tool for DeepSeek Harness. From **0.6.0**, ordinary
 delegations use the official **`@anthropic-ai/claude-agent-sdk@0.3.326`** with
@@ -23,11 +23,14 @@ official `@deepseek-ai/dsh-subagent-claude-code` provider cannot express:
 - diagnostics in `~/.dsh/claude-code-pro.log`, because a plugin has no log
   surface a session can read.
 
-The 0.6.0 migration is a source candidate. See the [SDK validation record](docs/sdk-migration-validation.md)
-for exact SDK/native versions, independent review and real native history checks.
+The SDK migration introduced in 0.6.0 is included in the published 0.7.0 package.
+The [SDK validation record](docs/sdk-migration-validation.md) preserves the
+original candidate's exact SDK/native versions, independent review and local
+history checks, with later registry verification recorded separately.
 
-> **Status:** `0.3.1` is the first fully live-verified release and ships the DSH
-> plugin display metadata (icon, eight locales). Text, model-native image and PDF
+> **Historical live validation (0.3.1):** `0.3.1` was the first fully live-verified
+> release and shipped the DSH plugin display metadata (icon, eight locales).
+> Text, model-native image and PDF
 > input, image output, `output_schema`, background jobs, and the session core
 > (including fork) were exercised against a real local `claude` CLI and a real
 > DSH session. See the verification record ([English](docs/live-verification.md) ·
@@ -91,7 +94,7 @@ dsh plugin --profile <profile> add dsh-subagent-claude-code-pro
 For the desktop app's managed profile use the app's **Plugins** page →
 **Add plugin** → enter the package name `dsh-subagent-claude-code-pro`; the plugin
 manager runs the same pnpm install. The profile records the installed version
-(for example `0.3.1`), not a path to a working copy.
+(for example `0.7.0`), not a path to a working copy.
 
 The bundle adds one root row and registers a per-Agent tool named
 `subagent_claude_code` for the presets named in `presets`. Because the tool name
