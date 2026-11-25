@@ -6,6 +6,17 @@ The 0.5.0–0.7.0 release status was rechecked on 2026-11-22; see the
 Registry publication is separate from source validation, installed versions and
 live account/model acceptance.
 
+## 0.7.1 (2026-11-25)
+
+- Normalize display-formatted Claude account plan strings returned by Claude CLI
+  2.1.331+ `accountInfo()` (e.g. `"Claude Pro"`, `"Claude Max"`) to canonical
+  lowercase plan tiers (`pro`, `max`, `team`, `enterprise`) during native
+  `subscription-only` admission.
+- Tolerate additive server-side metadata keys inside `rate_limits`, window
+  buckets, and `extra_usage` in `validUsageResponse` while continuing to require
+  explicit `extra_usage.is_enabled === false`, `apiProvider === "firstParty"`,
+  and matching normalized plan types before dispatching any task prompt.
+
 ## 0.7.0 (2026-11-22)
 
 - Persist ordered input-image SHA-256, MIME type and decoded-byte identities in

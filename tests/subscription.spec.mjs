@@ -248,3 +248,29 @@ test('unsupported SDK controls and response versions never fabricate verified bi
   assert.equal(result.status, 'unknown')
   assert.match(result.diagnostic, /unavailable/)
 })
+
+test('normalizes display plan labels ("Claude Pro") and tolerates additive server rate_limits fields without weakening extra_usage checks', async t => {
+  const f = fixture(t)
+  f.env.FAKE_CLAUDE_ACCOUNT = JSON.stringify({ apiProvider: 'firstParty', subscriptionType: 'Claude Pro' })
+  const limits = usage()
+  limits.rate_limits.five_hour = { utilization: 0, resets_at: null, limit_dollars: null, used_dollars: null, locked_reason: null }
+  limits.rate_limits.seven_day_cowork = null
+  limits.rate_limits.spend = { enabled: false, percent: 0 }
+  limits.rate_limits.extra_usage = {
+    is_enabled: false, monthly_limit: null, used_credits: null, utilization: null, currency: null,
+    user_disabled: false, spend_limit_reached: false, credits_can_pay: 'no', daily: null,
+  }
+  f.env.FAKE_CLAUDE_USAGE = JSON.stringify(limits)
+  const receipt = await f.run()
+  assert.equal(receipt.ok, true, JSON.stringify(receipt.failure))
+  assert.equal(receipt.subscription.status, 'verified')
+  assert.equal(receipt.subscription.subscriptionType, 'pro')
+  assert.equal(receipt.subscription.extraUsageEnabled, false)
+
+  limits.rate_limits.extra_usage.is_enabled = true
+  f.env.FAKE_CLAUDE_USAGE = JSON.stringify(limits)
+  const blocked = await f.run()
+  assert.equal(blocked.ok, false)
+  assert.equal(blocked.subscription.status, 'blocked')
+  assert.equal(blocked.subscription.extraUsageEnabled, true)
+})
